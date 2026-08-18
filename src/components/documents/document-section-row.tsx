@@ -18,6 +18,7 @@ export type DocumentSection = {
 type DocumentSectionRowProps = {
   section: DocumentSection;
   onNewDocument: (sectionId: string) => void;
+  onEditDocument: (document: DocumentItem) => void;
 };
 
 const FADE_RAMP_PX = 72;
@@ -37,6 +38,7 @@ function getFadeOpacity(scrollLeft: number, scrollWidth: number, clientWidth: nu
 export function DocumentSectionRow({
   section,
   onNewDocument,
+  onEditDocument,
 }: DocumentSectionRowProps) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const [fadeOpacity, setFadeOpacity] = useState({ start: 0, end: 0 });
@@ -98,7 +100,7 @@ export function DocumentSectionRow({
               <DocumentCard
                 key={document.id}
                 document={document}
-                href={`/documents/${document.id}?section=${encodeURIComponent(section.title)}`}
+                onClick={() => onEditDocument(document)}
                 highlighted={index === 0}
               />
             ))}

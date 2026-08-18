@@ -13,6 +13,7 @@ import {
   type DocumentColorId,
 } from "@/lib/document-colors";
 import { DocumentCardPreview } from "@/components/documents/document-card";
+import type { DocumentItem } from "@/components/documents/document-card";
 import {
   defaultIconForType,
   DOCUMENT_ICON_OPTIONS,
@@ -28,10 +29,13 @@ export type CreateDocumentPayload = {
   color: DocumentColorId;
 };
 
-type CreateDocumentDialogProps = {
+type DocumentDialogProps = {
   open: boolean;
   onClose: () => void;
   onSubmit: (payload: CreateDocumentPayload) => void;
+  document?: DocumentItem;
+  onDelete?: () => void;
+  isBusy?: boolean;
 };
 
 const TYPE_OPTIONS: {
@@ -52,11 +56,16 @@ function getBottomFadeOpacity(scrollTop: number, scrollHeight: number, clientHei
   return Math.min(1, remaining / SCROLL_FADE_RAMP_PX);
 }
 
-export function CreateDocumentDialog({
+function DocumentDialog({
   open,
   onClose,
   onSubmit,
-}: CreateDocumentDialogProps) {
+  document: editingDocument,
+  onDelete,
+  isBusy = false,
+}: DocumentDialogProps) {
+  const isEdit = Boolean(editingDocument);
+  const titleId = isEdit ? "edit-document-title" : "create-document-title";
   const listboxId = useId();
   const iconMenuRef = useRef<HTMLDivElement>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -66,6 +75,7 @@ export function CreateDocumentDialog({
   const [color, setColor] = useState<DocumentColorId>(DEFAULT_DOCUMENT_COLOR);
   const [iconMenuOpen, setIconMenuOpen] = useState(false);
   const [bottomFade, setBottomFade] = useState(0);
+  const [confirmDelete, setConfirmDelete] = useState(false);
 
   const updateBottomFade = useCallback(() => {
     const el = scrollRef.current;
@@ -90,12 +100,20 @@ export function CreateDocumentDialog({
 
   useEffect(() => {
     if (!open) return;
-    setTitle("");
-    setType("document");
-    setIcon("file-text");
-    setColor(DEFAULT_DOCUMENT_COLOR);
+    setConfirmDelete(false);
+    if (editingDocument) {
+      setTitle(editingDocument.title);
+      setType(editingDocument.type);
+      setIcon(editingDocument.icon);
+      setColor(editingDocument.color);
+    } else {
+      setTitle("");
+      setType("document");
+      setIcon("file-text");
+      setColor(DEFAULT_DOCUMENT_COLOR);
+    }
     setIconMenuOpen(false);
-  }, [open]);
+  }, [open, editingDocument]);
 
   useEffect(() => {
     if (!open) return;
@@ -186,7 +204,7 @@ export function CreateDocumentDialog({
           <motion.div
             role="dialog"
             aria-modal="true"
-            aria-labelledby="create-document-title"
+            aria-labelledby={titleId}
             initial={{ opacity: 0, y: 20, scale: 0.96 }}
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: 14, scale: 0.98 }}
@@ -197,13 +215,15 @@ export function CreateDocumentDialog({
               <div className="flex items-start justify-between gap-4">
                 <div>
                   <h2
-                    id="create-document-title"
+                    id={titleId}
                     className="text-lg font-semibold text-foreground"
                   >
-                    สร้างใหม่
+                    {isEdit ? "แก้ไข" : "สร้างใหม่"}
                   </h2>
                   <p className="mt-1 text-sm text-muted">
-                    เลือกประเภท สี ไอคอน และตั้งชื่อ
+                    {isEdit
+                      ? "ปรับประเภท สี ไอคอน หรือชื่อ"
+                      : "เลือกประเภท สี ไอคอน และตั้งชื่อ"}
                   </p>
                 </div>
                 <Button
@@ -241,9 +261,9 @@ export function CreateDocumentDialog({
                 <form
                   onSubmit={(event) => {
                     event.preventDefault();
-                    if (!canSubmit) return;
+                    if (!canSubmit || isBusy) return;
                     onSubmit({ title: trimmed, type, icon, color });
-                    onClose();
+                    if (!isEdit) onClose();
                   }}
                   className="space-y-5"
                 >
@@ -457,18 +477,78 @@ export function CreateDocumentDialog({
                 </div>
 
                 <div className="flex justify-end gap-2 pt-2">
-                  <Button type="button" variant="ghost" onClick={onClose}>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    onClick={onClose}
+                    disabled={isBusy}
+                  >
                     ยกเลิก
                   </Button>
                   <Button
                     type="submit"
                     variant="outline"
                     className="border-border bg-white text-black hover:bg-hover dark:bg-white dark:hover:bg-white/90"
-                    disabled={!canSubmit}
+                    disabled={!canSubmit || isBusy}
                   >
-                    สร้าง
+                    {isBusy
+                      ? isEdit
+                        ? "กำลังบันทึก..."
+                        : "กำลังสร้าง..."
+                      : isEdit
+                        ? "บันทึก"
+                        : "สร้าง"}
                   </Button>
                 </div>
+
+                {isEdit && onDelete && (
+                  <div className="rounded-xl border border-red-200 bg-red-50/50 p-3 dark:border-red-900/50 dark:bg-red-950/20">
+                    <p className="mb-2 text-xs font-medium text-red-700 dark:text-red-400">
+                      โซนอันตราย
+                    </p>
+                    {confirmDelete ? (
+                      <div className="space-y-2">
+                        <p className="text-sm text-red-700 dark:text-red-300">
+                          ลบ{type === "folder" ? "โฟลเดอร์" : "เอกสาร"}นี้ถาวร?
+                          การกระทำนี้ย้อนกลับไม่ได้
+                        </p>
+                        <div className="flex gap-2">
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => setConfirmDelete(false)}
+                            disabled={isBusy}
+                          >
+                            ยกเลิก
+                          </Button>
+                          <Button
+                            type="button"
+                            variant="destructive"
+                            size="sm"
+                            onClick={() => {
+                              onDelete();
+                              setConfirmDelete(false);
+                            }}
+                            disabled={isBusy}
+                          >
+                            {isBusy ? "กำลังลบ..." : "ยืนยันการลบ"}
+                          </Button>
+                        </div>
+                      </div>
+                    ) : (
+                      <Button
+                        type="button"
+                        variant="destructive"
+                        size="sm"
+                        onClick={() => setConfirmDelete(true)}
+                        disabled={isBusy}
+                      >
+                        ลบ{type === "folder" ? "โฟลเดอร์" : "เอกสาร"}
+                      </Button>
+                    )}
+                  </div>
+                )}
                 </form>
               </div>
 
@@ -482,5 +562,28 @@ export function CreateDocumentDialog({
         </div>
       )}
     </AnimatePresence>
+  );
+}
+
+export function CreateDocumentDialog(
+  props: Omit<DocumentDialogProps, "document" | "onDelete">
+) {
+  return <DocumentDialog {...props} />;
+}
+
+export function EditDocumentDialog({
+  document,
+  onDelete,
+  ...props
+}: Omit<DocumentDialogProps, "document" | "onDelete"> & {
+  document: DocumentItem;
+  onDelete: () => void;
+}) {
+  return (
+    <DocumentDialog
+      {...props}
+      document={document}
+      onDelete={onDelete}
+    />
   );
 }

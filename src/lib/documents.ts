@@ -121,6 +121,41 @@ export async function createDocumentSection(
   return data as DocumentNodeRecord;
 }
 
+export async function updateDocumentNode(
+  authorPbriId: string,
+  nodeId: string,
+  payload: CreateDocumentPayload
+) {
+  const { data, error } = await supabase
+    .from("document_nodes")
+    .update({
+      kind: payload.type === "folder" ? "folder" : "page",
+      title: payload.title.trim(),
+      icon: payload.icon,
+      color: payload.color,
+    })
+    .eq("id", nodeId)
+    .eq("author_pbri_id", authorPbriId)
+    .select("*")
+    .single();
+
+  if (error) throw error;
+  return toDocumentItem(data as DocumentNodeRecord);
+}
+
+export async function deleteDocumentNode(
+  authorPbriId: string,
+  nodeId: string
+) {
+  const { error } = await supabase
+    .from("document_nodes")
+    .delete()
+    .eq("id", nodeId)
+    .eq("author_pbri_id", authorPbriId);
+
+  if (error) throw error;
+}
+
 export async function createDocumentNode(
   authorPbriId: string,
   parentId: string,
