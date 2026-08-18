@@ -18,8 +18,44 @@ Build a Notion-inspired app shell for shistudygram: a fixed sidebar with navigat
 | Sidebar | Primary focus — nav links + theme toggle |
 | UI library | shadcn/ui + next-themes |
 | Styling | Tailwind CSS v4 with semantic CSS variables |
+| English font | **Inter** (closest open-source match to Notion's NotionInter) |
+| Thai font | **Noto Sans Thai** (Google Fonts) |
 
 ## Architecture
+
+### Typography
+
+Notion uses a proprietary **NotionInter** (a bundled variant of Inter). For v1 we use the open-source **Inter** from Google Fonts — the closest match available.
+
+| Role | Font | Weights | Notes |
+|------|------|---------|-------|
+| English / Latin | Inter | 400, 500, 600, 700 | Body, UI labels, headings |
+| Thai script | Noto Sans Thai | 400, 500, 600, 700 | Auto-selected for Thai characters |
+
+**Implementation via `next/font/google`:**
+
+```tsx
+import { Inter, Noto_Sans_Thai } from "next/font/google";
+
+const inter = Inter({ subsets: ["latin"], variable: "--font-inter" });
+const notoSansThai = Noto_Sans_Thai({ subsets: ["thai"], variable: "--font-noto-sans-thai" });
+```
+
+**CSS font stack** (in `globals.css`):
+
+```css
+--font-sans: var(--font-inter), var(--font-noto-sans-thai), ui-sans-serif, system-ui, sans-serif;
+```
+
+The browser picks Inter for Latin and Noto Sans Thai for Thai glyphs automatically. Replaces the default Geist font from the scaffold.
+
+**Notion-like sizing (v1 defaults):**
+
+| Element | Size | Weight | Line height |
+|---------|------|--------|-------------|
+| Greeting (h1) | 32px | 600 | 1.2 |
+| Sidebar items | 14px | 400 | 1.4 |
+| Body text | 16px | 400 | 1.5 |
 
 ### Layout
 
@@ -72,7 +108,7 @@ Build a Notion-inspired app shell for shistudygram: a fixed sidebar with navigat
 ```
 src/
 ├── app/
-│   ├── layout.tsx              # Root: fonts, ThemeProvider
+│   ├── layout.tsx              # Root: fonts (Inter + Noto Sans Thai), ThemeProvider
 │   ├── globals.css             # Design tokens (light + dark)
 │   └── (app)/
 │       ├── layout.tsx          # App shell: Sidebar + main area
@@ -125,6 +161,7 @@ Sidebar shows 3–4 hardcoded pages with emoji icons (e.g. "English", "Idioms", 
 4. Sidebar shows Home + placeholder pages with hover states
 5. Greeting changes based on time of day
 6. `npm run build` passes with no errors
+7. English text renders in Inter; Thai text renders in Noto Sans Thai
 
 ## Future Considerations
 
