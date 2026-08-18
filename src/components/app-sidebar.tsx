@@ -18,7 +18,7 @@ import {
 
 export function AppSidebar() {
   return (
-    <Sidebar className="border-border bg-sidebar text-foreground">
+    <Sidebar collapsible="none" className="border-border bg-sidebar text-foreground">
       <SidebarHeader className="px-3 py-4">
         <span className="text-sm font-medium text-muted">
           shi_studygram
@@ -32,7 +32,7 @@ export function AppSidebar() {
               <SidebarMenuItem>
                 <SidebarMenuButton
                   isActive
-                  className="text-[14px] leading-[1.4] hover:bg-hover data-[active=true]:bg-hover data-[active=true]:text-accent"
+                  className="text-[14px] leading-[1.4] hover:bg-hover data-active:bg-hover data-active:text-accent"
                 >
                   <Home className="h-4 w-4" />
                   <span>Home</span>
