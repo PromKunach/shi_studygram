@@ -6,6 +6,10 @@ import { AnimatePresence, motion } from "motion/react"
 
 import { AddAppointmentDialog } from "@/app/(app)/appointment/AddAppointmentDialog"
 import { AppointmentDetailDialog } from "@/app/(app)/appointment/AppointmentDetailDialog"
+import {
+  AppointmentCalendarDotsSkeleton,
+  AppointmentListSkeleton,
+} from "@/app/(app)/appointment/AppointmentPageSkeleton"
 import { PaperDateCard } from "@/app/(app)/appointment/PaperDateCard"
 import {
   EMPTY_APPOINTMENT_FILTER,
@@ -236,8 +240,8 @@ export default function AppointmentPage() {
   )
 
   const reloadAppointments = useCallback(async () => {
-    setIsLoading(true)
     setLoadError(null)
+    setIsLoading(true)
     try {
       const records = await fetchAppointmentsForMonth(
         viewMonth.getFullYear(),
@@ -453,9 +457,7 @@ export default function AppointmentPage() {
 
             <ul className="space-y-2">
               {isLoading ? (
-                <li className="rounded-xl border border-dashed border-border px-4 py-8 text-center text-sm text-muted">
-                  กำลังโหลด...
-                </li>
+                <AppointmentListSkeleton count={2} />
               ) : selectedAppointments.length > 0 ? (
                 selectedAppointments.map((item) => {
                   const description = appointmentDescriptionDisplay(item.description)
@@ -602,14 +604,17 @@ export default function AppointmentPage() {
                       {cell.day}
                     </span>
                     <div className="relative z-10 mt-auto flex w-full flex-col gap-1 pt-2">
-                      {!isLoading &&
+                      {isLoading ? (
+                        <AppointmentCalendarDotsSkeleton />
+                      ) : (
                         dayAppointments.slice(0, 3).map((item) => (
                           <span
                             key={item.id}
                             className="h-1 w-full rounded-full"
                             style={appointmentAccentStyle(item, 0.8)}
                           />
-                        ))}
+                        ))
+                      )}
                     </div>
                   </button>
                 )

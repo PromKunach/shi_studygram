@@ -11,6 +11,7 @@ import {
   DocumentSectionRow,
   type DocumentSection,
 } from "@/components/documents/document-section-row";
+import { DocumentsSectionsSkeleton } from "@/components/documents/documents-page-skeleton";
 import { Input } from "@/components/ui/input";
 import {
   createDocumentNode,
@@ -47,16 +48,18 @@ export default function DocumentsPage() {
     string | null
   >(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [hasLoaded, setHasLoaded] = useState(false);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
 
-  const loadWorkspace = useCallback(async () => {
+  const loadWorkspace = useCallback(async (options?: { silent?: boolean }) => {
     setLoadError(null);
-    setIsLoading(true);
+    if (!options?.silent) setIsLoading(true);
 
     try {
       const nextSections = await fetchDocumentWorkspace(authorPbriId);
       setSections(nextSections);
+      setHasLoaded(true);
     } catch (error) {
       console.error(error);
       setLoadError("โหลดเอกสารไม่สำเร็จ");
@@ -83,7 +86,7 @@ export default function DocumentsPage() {
 
     try {
       await createDocumentSection(authorPbriId, name);
-      await loadWorkspace();
+      await loadWorkspace({ silent: true });
       setIsCreateSectionOpen(false);
     } catch (error) {
       console.error(error);
@@ -135,6 +138,8 @@ export default function DocumentsPage() {
     openCreateDocument(sectionId);
   };
 
+  const isWorkspaceLoading = !ready || (isLoading && !hasLoaded);
+
   return (
     <main className={cn(PAGE_MAIN)}>
       <div className="mx-auto w-full max-w-5xl">
@@ -152,13 +157,14 @@ export default function DocumentsPage() {
               placeholder="ค้นหาส่วนหรือเอกสาร..."
               className="h-10 bg-sidebar pl-9 shadow-none"
               aria-label="ค้นหาเอกสาร"
+              disabled={isWorkspaceLoading}
             />
           </div>
 
           <button
             type="button"
             onClick={openCreateSection}
-            disabled={isSaving || isLoading}
+            disabled={isSaving || isWorkspaceLoading}
             className="inline-flex shrink-0 items-center justify-center gap-2 rounded-lg border border-border bg-background px-3 py-2 text-sm font-medium text-foreground transition-colors hover:bg-hover disabled:opacity-50"
           >
             <Plus className="h-4 w-4" />
@@ -172,10 +178,8 @@ export default function DocumentsPage() {
           </div>
         )}
 
-        {isLoading ? (
-          <div className="rounded-2xl border border-dashed border-border bg-sidebar px-6 py-14 text-center">
-            <p className="text-sm text-muted">กำลังโหลดเอกสาร...</p>
-          </div>
+        {isWorkspaceLoading ? (
+          <DocumentsSectionsSkeleton />
         ) : sections.length === 0 ? (
           <div className="rounded-2xl border border-dashed border-border bg-sidebar px-6 py-14 text-center">
             <p className="text-sm text-muted">ยังไม่มีส่วนเอกสาร</p>
