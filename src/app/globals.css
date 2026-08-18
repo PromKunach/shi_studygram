@@ -10,14 +10,15 @@
   --foreground: #37352f;
   --muted: #9b9a97;
   --border: #e9e9e7;
-  --accent: #2383e2;
+  --accent: #37352f;
   --hover: #efefef;
+  --card-accent: #2383e2;
 
   --card: var(--background);
   --card-foreground: var(--foreground);
   --popover: var(--background);
   --popover-foreground: var(--foreground);
-  --primary: var(--accent);
+  --primary: var(--foreground);
   --primary-foreground: #ffffff;
   --secondary: var(--hover);
   --secondary-foreground: var(--foreground);
@@ -25,20 +26,20 @@
   --accent-foreground: #ffffff;
   --destructive: #eb5757;
   --input: var(--border);
-  --ring: var(--accent);
-  --chart-1: var(--accent);
+  --ring: #d4d4d4;
+  --chart-1: var(--foreground);
   --chart-2: var(--muted);
   --chart-3: var(--foreground);
   --chart-4: var(--sidebar);
   --chart-5: var(--hover);
   --radius: 0.625rem;
   --sidebar-foreground: var(--foreground);
-  --sidebar-primary: var(--accent);
+  --sidebar-primary: var(--foreground);
   --sidebar-primary-foreground: #ffffff;
   --sidebar-accent: var(--hover);
   --sidebar-accent-foreground: var(--foreground);
   --sidebar-border: var(--border);
-  --sidebar-ring: var(--accent);
+  --sidebar-ring: var(--border);
 }
 
 .dark {
@@ -47,8 +48,10 @@
   --foreground: #e6e6e5;
   --muted: #7a7a78;
   --border: #2f2f2f;
-  --accent: #529cca;
+  --accent: #e6e6e5;
   --hover: #2a2a2a;
+  --card-accent: #529cca;
+  --ring: #404040;
 }
 
 @theme inline {
@@ -58,6 +61,7 @@
   --color-muted: var(--muted);
   --color-border: var(--border);
   --color-accent: var(--accent);
+  --color-card-accent: var(--card-accent);
   --color-hover: var(--hover);
   --font-sans: var(--font-inter), var(--font-noto-sans-thai), ui-sans-serif, system-ui, sans-serif;
   --font-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;

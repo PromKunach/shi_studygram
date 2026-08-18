@@ -31,7 +31,7 @@ export default function RootLayout({
       suppressHydrationWarning
       className={`${inter.variable} ${notoSansThai.variable} h-full antialiased`}
     >
-      <body className="min-h-full font-sans">
+      <body className="min-h-screen font-sans">
         <ThemeProvider>{children}</ThemeProvider>
       </body>
     </html>

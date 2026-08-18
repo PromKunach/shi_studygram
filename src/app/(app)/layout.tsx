@@ -1,15 +1,9 @@
-import { AppSidebar } from "@/components/app-sidebar";
-import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar";
+import { AppShell } from "@/components/app-shell";
 
 export default function AppLayout({
   children,
 }: Readonly<{
   children: React.ReactNode;
 }>) {
-  return (
-    <SidebarProvider defaultOpen>
-      <AppSidebar />
-      <SidebarInset className="bg-background">{children}</SidebarInset>
-    </SidebarProvider>
-  );
+  return <AppShell>{children}</AppShell>;
 }
