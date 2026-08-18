@@ -4,9 +4,11 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { Plus, Search } from "lucide-react";
 import {
   CreateDocumentDialog,
+  EditDocumentDialog,
   type CreateDocumentPayload,
 } from "@/components/documents/create-document-dialog";
 import { CreateSectionDialog } from "@/components/documents/create-section-dialog";
+import type { DocumentItem } from "@/components/documents/document-card";
 import {
   DocumentSectionRow,
   type DocumentSection,
@@ -16,7 +18,9 @@ import { Input } from "@/components/ui/input";
 import {
   createDocumentNode,
   createDocumentSection,
+  deleteDocumentNode,
   fetchDocumentWorkspace,
+  updateDocumentNode,
 } from "@/lib/documents";
 import { sortDocumentsWithFoldersFirst } from "@/lib/document-icons";
 import { PAGE_MAIN } from "@/lib/layout";
@@ -47,6 +51,9 @@ export default function DocumentsPage() {
   const [createDocumentSectionId, setCreateDocumentSectionId] = useState<
     string | null
   >(null);
+  const [editingDocument, setEditingDocument] = useState<DocumentItem | null>(
+    null
+  );
   const [isLoading, setIsLoading] = useState(true);
   const [hasLoaded, setHasLoaded] = useState(false);
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -138,6 +145,64 @@ export default function DocumentsPage() {
     openCreateDocument(sectionId);
   };
 
+  const handleUpdateDocument = async (payload: CreateDocumentPayload) => {
+    if (!editingDocument) return;
+
+    setIsSaving(true);
+    setLoadError(null);
+
+    try {
+      const updated = await updateDocumentNode(
+        authorPbriId,
+        editingDocument.id,
+        payload
+      );
+
+      setSections((current) =>
+        current.map((section) => ({
+          ...section,
+          documents: sortDocumentsWithFoldersFirst(
+            section.documents.map((document) =>
+              document.id === updated.id ? updated : document
+            )
+          ),
+        }))
+      );
+      setEditingDocument(null);
+    } catch (error) {
+      console.error(error);
+      setLoadError("บันทึกการแก้ไขไม่สำเร็จ");
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const handleDeleteDocument = async () => {
+    if (!editingDocument) return;
+
+    setIsSaving(true);
+    setLoadError(null);
+
+    try {
+      await deleteDocumentNode(authorPbriId, editingDocument.id);
+
+      setSections((current) =>
+        current.map((section) => ({
+          ...section,
+          documents: section.documents.filter(
+            (document) => document.id !== editingDocument.id
+          ),
+        }))
+      );
+      setEditingDocument(null);
+    } catch (error) {
+      console.error(error);
+      setLoadError("ลบไม่สำเร็จ");
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
   const isWorkspaceLoading = !ready || (isLoading && !hasLoaded);
 
   return (
@@ -202,6 +267,7 @@ export default function DocumentsPage() {
                 key={section.id}
                 section={section}
                 onNewDocument={addDocument}
+                onEditDocument={setEditingDocument}
               />
             ))}
           </div>
@@ -218,7 +284,19 @@ export default function DocumentsPage() {
         open={createDocumentSectionId !== null}
         onClose={() => setCreateDocumentSectionId(null)}
         onSubmit={handleCreateDocument}
+        isBusy={isSaving}
       />
+
+      {editingDocument && (
+        <EditDocumentDialog
+          open
+          document={editingDocument}
+          onClose={() => setEditingDocument(null)}
+          onSubmit={handleUpdateDocument}
+          onDelete={() => void handleDeleteDocument()}
+          isBusy={isSaving}
+        />
+      )}
     </main>
   );
 }

@@ -14,6 +14,7 @@ export type DocumentColorOption = {
   to?: string;
 };
 
+/** Saturated gradient pairs for swatches and card accents. */
 export const DOCUMENT_COLOR_OPTIONS: DocumentColorOption[] = [
   { id: "none", label: "No color" },
   { id: "blue", label: "น้ำเงิน", from: "#2383e2", to: "#529cca" },
@@ -43,16 +44,18 @@ export function getDocumentColorStyles(id: DocumentColorId | undefined) {
       hasColor: false,
       accent: "var(--muted)",
       swatch: "",
-      cardFade: "transparent",
+      cardFill: "transparent",
       tabFill: "var(--sidebar)",
     };
   }
 
+  const { from, to } = option;
+
   return {
     hasColor: true,
-    accent: option.from,
-    swatch: `linear-gradient(145deg, ${option.from}, ${option.to})`,
-    cardFade: `linear-gradient(to bottom, color-mix(in srgb, ${option.from} 28%, transparent), transparent)`,
-    tabFill: `linear-gradient(180deg, color-mix(in srgb, ${option.from} 18%, var(--sidebar)), var(--sidebar))`,
+    accent: from,
+    swatch: `linear-gradient(145deg, ${from}, ${to})`,
+    cardFill: `linear-gradient(to bottom, color-mix(in srgb, ${from} 24%, transparent), transparent)`,
+    tabFill: `linear-gradient(180deg, color-mix(in srgb, ${from} 20%, var(--sidebar)), var(--sidebar))`,
   };
 }
