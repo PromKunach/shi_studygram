@@ -16,13 +16,15 @@ import {
 import { DocumentsSectionsSkeleton } from "@/components/documents/documents-page-skeleton";
 import { Input } from "@/components/ui/input";
 import {
+  buildSectionBreadcrumb,
   createDocumentNode,
   createDocumentSection,
   deleteDocumentNode,
   fetchDocumentWorkspace,
+  getNodeChildren,
   updateDocumentNode,
+  type DocumentNodeRecord,
 } from "@/lib/documents";
-import { sortDocumentsWithFoldersFirst } from "@/lib/document-icons";
 import { PAGE_MAIN } from "@/lib/layout";
 import { PAGE_META } from "@/lib/navigation";
 import { getAuthorPbriId, useCurrentUser } from "@/lib/userProfile";
@@ -30,15 +32,41 @@ import { cn } from "@/lib/utils";
 
 const pageTitle = PAGE_META["/documents"]?.label ?? "เอกสาร";
 
-function matchesSearch(section: DocumentSection, query: string) {
+function matchesSearch(
+  section: DocumentSection,
+  documents: DocumentItem[],
+  breadcrumbTitles: string[],
+  query: string
+) {
   const normalized = query.trim().toLowerCase();
   if (!normalized) return true;
 
+  if (breadcrumbTitles.some((title) => title.toLowerCase().includes(normalized))) {
+    return true;
+  }
+
   if (section.title.toLowerCase().includes(normalized)) return true;
 
-  return section.documents.some((document) =>
+  return documents.some((document) =>
     document.title.toLowerCase().includes(normalized)
   );
+}
+
+function pruneFolderStack(
+  stack: string[],
+  nodes: DocumentNodeRecord[]
+): string[] {
+  const next: string[] = [];
+
+  for (const folderId of stack) {
+    const folder = nodes.find(
+      (node) => node.id === folderId && node.kind === "folder"
+    );
+    if (!folder) break;
+    next.push(folderId);
+  }
+
+  return next;
 }
 
 export default function DocumentsPage() {
@@ -46,9 +74,13 @@ export default function DocumentsPage() {
   const authorPbriId = getAuthorPbriId(user);
 
   const [sections, setSections] = useState<DocumentSection[]>([]);
+  const [nodes, setNodes] = useState<DocumentNodeRecord[]>([]);
+  const [folderStackBySection, setFolderStackBySection] = useState<
+    Record<string, string[]>
+  >({});
   const [searchQuery, setSearchQuery] = useState("");
   const [isCreateSectionOpen, setIsCreateSectionOpen] = useState(false);
-  const [createDocumentSectionId, setCreateDocumentSectionId] = useState<
+  const [createDocumentParentId, setCreateDocumentParentId] = useState<
     string | null
   >(null);
   const [editingDocument, setEditingDocument] = useState<DocumentItem | null>(
@@ -64,8 +96,19 @@ export default function DocumentsPage() {
     if (!options?.silent) setIsLoading(true);
 
     try {
-      const nextSections = await fetchDocumentWorkspace(authorPbriId);
-      setSections(nextSections);
+      const workspace = await fetchDocumentWorkspace(authorPbriId);
+      setSections(workspace.sections);
+      setNodes(workspace.nodes);
+      setFolderStackBySection((current) => {
+        const next: Record<string, string[]> = {};
+        for (const section of workspace.sections) {
+          next[section.id] = pruneFolderStack(
+            current[section.id] ?? [],
+            workspace.nodes
+          );
+        }
+        return next;
+      });
       setHasLoaded(true);
     } catch (error) {
       console.error(error);
@@ -80,10 +123,27 @@ export default function DocumentsPage() {
     void loadWorkspace();
   }, [ready, loadWorkspace]);
 
-  const filteredSections = useMemo(
-    () => sections.filter((section) => matchesSearch(section, searchQuery)),
-    [sections, searchQuery]
+  const getActiveParentId = useCallback(
+    (sectionId: string) => {
+      const stack = folderStackBySection[sectionId] ?? [];
+      return stack.length > 0 ? stack[stack.length - 1]! : sectionId;
+    },
+    [folderStackBySection]
   );
+
+  const filteredSections = useMemo(() => {
+    return sections.filter((section) => {
+      const stack = folderStackBySection[section.id] ?? [];
+      const breadcrumb = buildSectionBreadcrumb(section, nodes, stack);
+      const documents = getNodeChildren(nodes, getActiveParentId(section.id));
+      return matchesSearch(
+        section,
+        documents,
+        breadcrumb.map((segment) => segment.title),
+        searchQuery
+      );
+    });
+  }, [sections, nodes, folderStackBySection, searchQuery, getActiveParentId]);
 
   const openCreateSection = () => setIsCreateSectionOpen(true);
 
@@ -103,36 +163,20 @@ export default function DocumentsPage() {
     }
   };
 
-  const openCreateDocument = (sectionId: string) => {
-    setCreateDocumentSectionId(sectionId);
+  const openCreateDocument = (parentId: string) => {
+    setCreateDocumentParentId(parentId);
   };
 
   const handleCreateDocument = async (payload: CreateDocumentPayload) => {
-    if (!createDocumentSectionId) return;
+    if (!createDocumentParentId) return;
 
     setIsSaving(true);
     setLoadError(null);
 
     try {
-      const created = await createDocumentNode(
-        authorPbriId,
-        createDocumentSectionId,
-        payload
-      );
-
-      setSections((current) =>
-        current.map((section) => {
-          if (section.id !== createDocumentSectionId) return section;
-          return {
-            ...section,
-            documents: sortDocumentsWithFoldersFirst([
-              ...section.documents,
-              created,
-            ]),
-          };
-        })
-      );
-      setCreateDocumentSectionId(null);
+      await createDocumentNode(authorPbriId, createDocumentParentId, payload);
+      await loadWorkspace({ silent: true });
+      setCreateDocumentParentId(null);
     } catch (error) {
       console.error(error);
       setLoadError("สร้างเอกสารไม่สำเร็จ");
@@ -141,8 +185,21 @@ export default function DocumentsPage() {
     }
   };
 
-  const addDocument = (sectionId: string) => {
-    openCreateDocument(sectionId);
+  const enterFolder = (sectionId: string, folder: DocumentItem) => {
+    if (folder.type !== "folder") return;
+
+    setFolderStackBySection((current) => ({
+      ...current,
+      [sectionId]: [...(current[sectionId] ?? []), folder.id],
+    }));
+  };
+
+  const navigateBreadcrumb = (sectionId: string, index: number) => {
+    setFolderStackBySection((current) => ({
+      ...current,
+      [sectionId]:
+        index === 0 ? [] : (current[sectionId] ?? []).slice(0, index),
+    }));
   };
 
   const handleUpdateDocument = async (payload: CreateDocumentPayload) => {
@@ -152,22 +209,8 @@ export default function DocumentsPage() {
     setLoadError(null);
 
     try {
-      const updated = await updateDocumentNode(
-        authorPbriId,
-        editingDocument.id,
-        payload
-      );
-
-      setSections((current) =>
-        current.map((section) => ({
-          ...section,
-          documents: sortDocumentsWithFoldersFirst(
-            section.documents.map((document) =>
-              document.id === updated.id ? updated : document
-            )
-          ),
-        }))
-      );
+      await updateDocumentNode(authorPbriId, editingDocument.id, payload);
+      await loadWorkspace({ silent: true });
       setEditingDocument(null);
     } catch (error) {
       console.error(error);
@@ -177,24 +220,38 @@ export default function DocumentsPage() {
     }
   };
 
-  const handleDeleteDocument = async () => {
-    if (!editingDocument) return;
+  const handleDeleteDocument = async (target?: DocumentItem | null) => {
+    const documentToDelete = target ?? editingDocument;
+    if (!documentToDelete) return;
 
     setIsSaving(true);
     setLoadError(null);
 
     try {
-      await deleteDocumentNode(authorPbriId, editingDocument.id);
+      await deleteDocumentNode(authorPbriId, documentToDelete.id);
 
-      setSections((current) =>
-        current.map((section) => ({
-          ...section,
-          documents: section.documents.filter(
-            (document) => document.id !== editingDocument.id
-          ),
-        }))
-      );
-      setEditingDocument(null);
+      setFolderStackBySection((current) => {
+        const next: Record<string, string[]> = {};
+        for (const [sectionId, stack] of Object.entries(current)) {
+          const filtered = stack.filter((id) => id !== documentToDelete.id);
+          if (
+            documentToDelete.type === "folder" &&
+            stack.includes(documentToDelete.id)
+          ) {
+            const cutIndex = stack.indexOf(documentToDelete.id);
+            next[sectionId] = stack.slice(0, cutIndex);
+          } else {
+            next[sectionId] = filtered;
+          }
+        }
+        return next;
+      });
+
+      await loadWorkspace({ silent: true });
+
+      if (editingDocument?.id === documentToDelete.id) {
+        setEditingDocument(null);
+      }
     } catch (error) {
       console.error(error);
       setLoadError("ลบไม่สำเร็จ");
@@ -208,7 +265,7 @@ export default function DocumentsPage() {
   return (
     <main className={cn(PAGE_MAIN)}>
       <div className="mx-auto w-full max-w-5xl">
-        <header className="mb-8 flex flex-col gap-4 lg:flex-row lg:items-center">
+        <header className="mb-6 flex flex-col gap-3 lg:flex-row lg:items-center">
           <h1 className="shrink-0 text-xl font-semibold text-foreground sm:text-2xl">
             {pageTitle}
           </h1>
@@ -261,15 +318,33 @@ export default function DocumentsPage() {
             <p className="text-sm text-muted">ไม่พบส่วนที่ตรงกับการค้นหา</p>
           </div>
         ) : (
-          <div className="space-y-10">
-            {filteredSections.map((section) => (
-              <DocumentSectionRow
-                key={section.id}
-                section={section}
-                onNewDocument={addDocument}
-                onEditDocument={setEditingDocument}
-              />
-            ))}
+          <div className="space-y-7">
+            {filteredSections.map((section) => {
+              const stack = folderStackBySection[section.id] ?? [];
+              const breadcrumb = buildSectionBreadcrumb(section, nodes, stack);
+              const activeParentId = getActiveParentId(section.id);
+              const documents = getNodeChildren(nodes, activeParentId);
+
+              return (
+                <DocumentSectionRow
+                  key={section.id}
+                  section={section}
+                  documents={documents}
+                  breadcrumb={breadcrumb}
+                  activeParentId={activeParentId}
+                  onNavigateBreadcrumb={(index) =>
+                    navigateBreadcrumb(section.id, index)
+                  }
+                  onNewDocument={openCreateDocument}
+                  onOpenFolder={(folder) => enterFolder(section.id, folder)}
+                  onEditDocument={setEditingDocument}
+                  onDeleteDocument={(document) =>
+                    void handleDeleteDocument(document)
+                  }
+                  isSaving={isSaving}
+                />
+              );
+            })}
           </div>
         )}
       </div>
@@ -281,8 +356,8 @@ export default function DocumentsPage() {
       />
 
       <CreateDocumentDialog
-        open={createDocumentSectionId !== null}
-        onClose={() => setCreateDocumentSectionId(null)}
+        open={createDocumentParentId !== null}
+        onClose={() => setCreateDocumentParentId(null)}
         onSubmit={handleCreateDocument}
         isBusy={isSaving}
       />

@@ -5,7 +5,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { motion } from "motion/react";
-import { ChevronLeft, ChevronRight, Clock, PanelLeftClose } from "lucide-react";
+import { ChevronLeft, ChevronRight, Clock } from "lucide-react";
 import {
   getPageMeta,
   isExternalHref,
@@ -20,9 +20,6 @@ import { cn } from "@/lib/utils";
 
 type AppSidebarProps = {
   open: boolean;
-  collapsed: boolean;
-  isMobile?: boolean;
-  onToggleCollapsed: () => void;
   onCloseSidebar?: () => void;
   onNavigate?: () => void;
 };
@@ -60,22 +57,16 @@ function NavSubLink({
 const RECENT_OPEN_KEY = "__recent__";
 
 function RecentSection({
-  collapsed,
-  labelClass,
   isOpen,
   onToggle,
   pathname,
   onNavigate,
 }: {
-  collapsed: boolean;
-  labelClass: string;
   isOpen: boolean;
   onToggle: () => void;
   pathname: string;
   onNavigate?: () => void;
 }) {
-  if (collapsed) return null;
-
   return (
     <div className="mt-5">
       <button
@@ -84,7 +75,7 @@ function RecentSection({
         className="group flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-sm font-medium text-foreground hover:bg-hover"
       >
         <Clock className="h-[18px] w-[18px] shrink-0" />
-        <span className={cn("flex-1 truncate text-left", labelClass)}>
+        <span className="flex-1 truncate text-left">
           {RECENT_SECTION_LABEL}
         </span>
         <ChevronRight
@@ -138,15 +129,11 @@ function RecentSection({
 
 export function AppSidebar({
   open,
-  collapsed,
-  isMobile = false,
-  onToggleCollapsed,
   onCloseSidebar,
   onNavigate,
 }: AppSidebarProps) {
   const pathname = usePathname();
   const [openItems, setOpenItems] = useState<Record<string, boolean>>({});
-  const labelClass = collapsed ? "sr-only" : "";
 
   const toggleItem = (label: string) => {
     setOpenItems((prev) => ({ ...prev, [label]: !prev[label] }));
@@ -157,17 +144,9 @@ export function AppSidebar({
       initial={false}
       animate={{ x: open ? 0 : "-100%" }}
       transition={{ duration: 0.28, ease: [0.22, 1, 0.36, 1] }}
-      className={cn(
-        "fixed inset-y-0 left-0 z-50 flex h-dvh flex-col border-r border-border bg-sidebar will-change-transform",
-        collapsed && !isMobile ? "w-[76px]" : "w-[min(280px,85vw)] sm:w-[280px]"
-      )}
+      className="fixed inset-y-0 left-0 z-50 flex h-dvh w-[min(280px,85vw)] flex-col border-r border-border bg-sidebar will-change-transform sm:w-[280px]"
     >
-      <header
-        className={cn(
-          "flex items-center border-b border-border py-4",
-          collapsed && !isMobile ? "justify-center px-2" : "justify-between px-4"
-        )}
-      >
+      <header className="flex items-center justify-between border-b border-border px-4 py-4">
         <Link
           href="/"
           onClick={onNavigate}
@@ -191,7 +170,7 @@ export function AppSidebar({
             priority
           />
         </Link>
-        {onCloseSidebar && !collapsed && (
+        {onCloseSidebar && (
           <button
             type="button"
             onClick={onCloseSidebar}
@@ -207,12 +186,7 @@ export function AppSidebar({
         {NAV_SECTIONS.map((section, index) => (
           <div key={section.title ?? `section-${index}`} className={index === 0 ? "" : "mt-5"}>
             {section.title && section.items.length > 0 && (
-              <p
-                className={cn(
-                  "mb-1 px-2 text-xs uppercase tracking-wide text-muted",
-                  labelClass
-                )}
-              >
+              <p className="mb-1 px-2 text-xs uppercase tracking-wide text-muted">
                 {section.title}
               </p>
             )}
@@ -220,7 +194,7 @@ export function AppSidebar({
               {section.items.map((item) => {
                 const isOpen = openItems[item.label] ?? false;
                 const isActive = isNavItemActive(pathname, item);
-                const canExpand = item.expandable && !collapsed;
+                const canExpand = item.expandable;
                 const navItemClass = isActive
                   ? "bg-hover text-foreground"
                   : "text-foreground hover:bg-hover";
@@ -251,15 +225,11 @@ export function AppSidebar({
                         onClick={onNavigate}
                         className={cn(
                           "group flex items-center gap-2.5 rounded-lg px-2.5 py-2 text-sm font-medium",
-                          navItemClass,
-                          collapsed && "justify-center"
+                          navItemClass
                         )}
-                        title={collapsed ? item.label : undefined}
                       >
                         <item.icon className="h-[18px] w-[18px] shrink-0" />
-                        <span className={cn("flex-1 truncate", labelClass)}>
-                          {item.label}
-                        </span>
+                        <span className="flex-1 truncate">{item.label}</span>
                       </Link>
                     )}
 
@@ -304,35 +274,12 @@ export function AppSidebar({
         ))}
 
         <RecentSection
-          collapsed={collapsed}
-          labelClass={labelClass}
           isOpen={openItems[RECENT_OPEN_KEY] ?? true}
           onToggle={() => toggleItem(RECENT_OPEN_KEY)}
           pathname={pathname}
           onNavigate={onNavigate}
         />
       </nav>
-
-      <footer
-        className={cn(
-          "flex items-center border-t border-border p-3",
-          isMobile ? "hidden" : "justify-start"
-        )}
-      >
-        <button
-          type="button"
-          onClick={onToggleCollapsed}
-          className="flex h-9 w-9 items-center justify-center rounded-lg text-muted hover:bg-hover hover:text-foreground"
-          aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"}
-        >
-          <PanelLeftClose
-            className={cn(
-              "h-4 w-4 transition-transform",
-              collapsed && "rotate-180"
-            )}
-          />
-        </button>
-      </footer>
     </motion.aside>
   );
 }

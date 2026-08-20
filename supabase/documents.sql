@@ -16,6 +16,7 @@ create table if not exists public.document_nodes (
   parent_id uuid references public.document_nodes (id) on delete cascade,
   kind public.document_node_kind not null,
   title text not null,
+  content text not null default '',
   icon text not null default 'file-text',
   color text not null default 'blue',
   position integer not null default 0,

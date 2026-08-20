@@ -312,7 +312,7 @@ export default function AppointmentPage() {
     visible: boolean
   }>({ x: 0, y: 0, width: 0, height: 0, visible: false })
 
-  useLayoutEffect(() => {
+  const updateSelectionFrame = useCallback(() => {
     if (!selectedInViewMonth || !gridRef.current) {
       setSelectionFrame((current) =>
         current.visible ? { ...current, visible: false } : current
@@ -332,10 +332,10 @@ export default function AppointmentPage() {
     const gridRect = grid.getBoundingClientRect()
     const cellRect = cell.getBoundingClientRect()
     const next = {
-      x: cellRect.left - gridRect.left,
-      y: cellRect.top - gridRect.top,
-      width: cellRect.width,
-      height: cellRect.height,
+      x: Math.round(cellRect.left - gridRect.left),
+      y: Math.round(cellRect.top - gridRect.top),
+      width: Math.round(cellRect.width),
+      height: Math.round(cellRect.height),
       visible: true,
     }
 
@@ -351,7 +351,30 @@ export default function AppointmentPage() {
       }
       return next
     })
-  }, [selectedKey, selectedInViewMonth, monthFrameKey, isLoading])
+  }, [selectedInViewMonth, selectedKey])
+
+  useLayoutEffect(() => {
+    updateSelectionFrame()
+  }, [updateSelectionFrame, monthFrameKey, isLoading, filteredAppointments.length])
+
+  useEffect(() => {
+    const grid = gridRef.current
+    if (!grid) return
+
+    const observer = new ResizeObserver(() => {
+      updateSelectionFrame()
+    })
+    observer.observe(grid)
+
+    const cell = cellRefs.current.get(selectedKey)
+    if (cell) observer.observe(cell)
+
+    window.addEventListener("resize", updateSelectionFrame)
+    return () => {
+      observer.disconnect()
+      window.removeEventListener("resize", updateSelectionFrame)
+    }
+  }, [updateSelectionFrame, selectedKey, monthFrameKey])
 
   useEffect(() => {
     setIsDetailOpen(false)
@@ -586,7 +609,7 @@ export default function AppointmentPage() {
                     className={cn(
                       "relative z-0 flex min-h-14 flex-col rounded-lg border p-1.5 text-left sm:min-h-16 sm:p-2 md:min-h-20",
                       isSelected
-                        ? "z-[101] border-transparent bg-transparent"
+                        ? "z-[101] border-transparent bg-transparent shadow-none"
                         : "border-border bg-background hover:bg-hover"
                     )}
                   >
@@ -622,7 +645,7 @@ export default function AppointmentPage() {
               {selectionFrame.visible && (
                 <motion.div
                   aria-hidden="true"
-                  className="pointer-events-none absolute top-0 left-0 z-[100] rounded-lg border border-border bg-hover shadow-md ring-1 ring-border"
+                  className="pointer-events-none absolute top-0 left-0 z-[100] box-border rounded-lg border border-border bg-hover shadow-sm"
                   initial={false}
                   animate={{
                     x: selectionFrame.x,
@@ -630,7 +653,7 @@ export default function AppointmentPage() {
                     width: selectionFrame.width,
                     height: selectionFrame.height,
                   }}
-                  transition={{ type: "spring", stiffness: 420, damping: 34 }}
+                  transition={{ type: "spring", stiffness: 520, damping: 38, mass: 0.75 }}
                 />
               )}
             </div>

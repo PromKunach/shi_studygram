@@ -7,7 +7,10 @@ import {
   type DocumentItem,
 } from "@/components/documents/document-card";
 import { NewDocumentCard } from "@/components/documents/new-document-card";
+import { DOCUMENT_ROW_GAP, DOCUMENT_SCROLL_STEP } from "@/components/documents/document-card-metrics";
+import type { DocumentBreadcrumbSegment } from "@/lib/documents";
 import { sortDocumentsWithFoldersFirst } from "@/lib/document-icons";
+import { cn } from "@/lib/utils";
 
 export type DocumentSection = {
   id: string;
@@ -17,8 +20,15 @@ export type DocumentSection = {
 
 type DocumentSectionRowProps = {
   section: DocumentSection;
-  onNewDocument: (sectionId: string) => void;
+  documents: DocumentItem[];
+  breadcrumb: DocumentBreadcrumbSegment[];
+  activeParentId: string;
+  onNavigateBreadcrumb: (index: number) => void;
+  onNewDocument: (parentId: string) => void;
+  onOpenFolder: (document: DocumentItem) => void;
   onEditDocument: (document: DocumentItem) => void;
+  onDeleteDocument: (document: DocumentItem) => void;
+  isSaving?: boolean;
 };
 
 const FADE_RAMP_PX = 72;
@@ -37,14 +47,21 @@ function getFadeOpacity(scrollLeft: number, scrollWidth: number, clientWidth: nu
 
 export function DocumentSectionRow({
   section,
+  documents,
+  breadcrumb,
+  activeParentId,
+  onNavigateBreadcrumb,
   onNewDocument,
+  onOpenFolder,
   onEditDocument,
+  onDeleteDocument,
+  isSaving = false,
 }: DocumentSectionRowProps) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const [fadeOpacity, setFadeOpacity] = useState({ start: 0, end: 0 });
   const sortedDocuments = useMemo(
-    () => sortDocumentsWithFoldersFirst(section.documents),
-    [section.documents]
+    () => sortDocumentsWithFoldersFirst(documents),
+    [documents]
   );
   const cardCount = sortedDocuments.length + 1;
 
@@ -79,28 +96,80 @@ export function DocumentSectionRow({
   }, [sortedDocuments.length, updateFade]);
 
   const scrollNext = () => {
-    scrollRef.current?.scrollBy({ left: 180, behavior: "smooth" });
+    scrollRef.current?.scrollBy({ left: DOCUMENT_SCROLL_STEP, behavior: "smooth" });
+  };
+
+  const handleOpen = (document: DocumentItem) => {
+    if (document.type === "folder") {
+      onOpenFolder(document);
+    }
   };
 
   return (
     <section>
-      <div className="mb-3 flex items-center gap-2 text-sm text-muted">
+      <div className="mb-2.5 flex min-w-0 items-center gap-2 text-sm text-muted sm:text-base">
         <Folder className="h-4 w-4 shrink-0" />
-        <span className="truncate font-medium text-foreground">{section.title}</span>
+        <nav
+          className="flex min-w-0 flex-1 items-center gap-1"
+          aria-label={`ตำแหน่งใน${section.title}`}
+        >
+          {breadcrumb.map((segment, index) => {
+            const isLast = index === breadcrumb.length - 1;
+
+            return (
+              <span key={segment.id} className="flex min-w-0 items-center gap-1">
+                {index > 0 && (
+                  <ChevronRight
+                    className="h-3.5 w-3.5 shrink-0 text-muted"
+                    aria-hidden
+                  />
+                )}
+                {isLast ? (
+                  <span className="truncate font-semibold text-foreground">
+                    {segment.title}
+                  </span>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => onNavigateBreadcrumb(index)}
+                    className="truncate transition-colors hover:text-foreground"
+                  >
+                    {segment.title}
+                  </button>
+                )}
+              </span>
+            );
+          })}
+        </nav>
       </div>
 
-      <div className="relative flex items-center gap-2">
+      <div className="relative flex items-center gap-1.5">
         <div className="relative min-w-0 flex-1">
           <div
             ref={scrollRef}
-            className="flex gap-3 overflow-x-auto pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+            className={cn(
+              "flex overflow-x-auto pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden",
+              DOCUMENT_ROW_GAP
+            )}
           >
-            <NewDocumentCard onClick={() => onNewDocument(section.id)} />
+            <NewDocumentCard onClick={() => onNewDocument(activeParentId)} />
             {sortedDocuments.map((document, index) => (
               <DocumentCard
                 key={document.id}
                 document={document}
-                onClick={() => onEditDocument(document)}
+                href={
+                  document.type === "document"
+                    ? `/documents/${document.id}`
+                    : undefined
+                }
+                onOpen={
+                  document.type === "folder"
+                    ? () => handleOpen(document)
+                    : undefined
+                }
+                onEdit={() => onEditDocument(document)}
+                onDelete={() => onDeleteDocument(document)}
+                isBusy={isSaving}
                 highlighted={index === 0}
               />
             ))}

@@ -1,44 +1,62 @@
 import { Skeleton } from "@/components/ui/skeleton";
+import {
+  DOCUMENT_CARD_CAPTION_GAP,
+  DOCUMENT_CARD_HEIGHT,
+  DOCUMENT_CARD_PADDING,
+  DOCUMENT_CARD_RADIUS,
+  DOCUMENT_CARD_WIDTH,
+  DOCUMENT_COLOR_FADE_HEIGHT,
+  DOCUMENT_ICON_CLASS,
+  FOLDER_BODY_OFFSET,
+  FOLDER_BODY_RADIUS,
+  FOLDER_CARD_WIDTH,
+  FOLDER_TAB_HEIGHT,
+  FOLDER_TAB_RADIUS,
+  NEW_DOCUMENT_ICON_WRAP,
+} from "@/components/documents/document-card-metrics";
 import { cn } from "@/lib/utils";
-
-const DOCUMENT_CARD_WIDTH = "w-36 sm:w-40";
-const DOCUMENT_CARD_HEIGHT = "h-[calc(9rem*5/4)] sm:h-[calc(10rem*5/4)]";
 
 function NewDocumentCardSkeleton() {
   return (
-    <div
-      className={cn(
-        "relative flex shrink-0 flex-col items-center justify-center overflow-hidden rounded-2xl border border-dashed border-border/80 bg-sidebar p-4",
-        DOCUMENT_CARD_WIDTH,
-        DOCUMENT_CARD_HEIGHT
-      )}
-    >
-      <Skeleton className="h-10 w-10 rounded-full" />
-      <Skeleton className="mt-4 h-3.5 w-16 rounded-md" />
+    <div className={cn("flex shrink-0 flex-col", DOCUMENT_CARD_WIDTH)}>
+      <div
+        className={cn(
+          "relative flex flex-col items-center justify-center overflow-hidden border border-dashed border-border/80 bg-sidebar",
+          DOCUMENT_CARD_PADDING,
+          DOCUMENT_CARD_RADIUS,
+          DOCUMENT_CARD_HEIGHT
+        )}
+      >
+        <Skeleton className={cn(NEW_DOCUMENT_ICON_WRAP, "rounded-full")} />
+      </div>
+      <Skeleton className={cn(DOCUMENT_CARD_CAPTION_GAP, "h-3 w-12 rounded-md")} />
     </div>
   );
 }
 
 function DocumentPageCardSkeleton() {
   return (
-    <div
-      className={cn(
-        "relative flex shrink-0 flex-col overflow-hidden rounded-2xl border border-border bg-sidebar p-4",
-        DOCUMENT_CARD_WIDTH,
-        DOCUMENT_CARD_HEIGHT
-      )}
-    >
+    <div className={cn("flex shrink-0 flex-col", DOCUMENT_CARD_WIDTH)}>
       <div
-        aria-hidden
-        className="pointer-events-none absolute inset-x-0 top-0 h-20 bg-gradient-to-b from-border/15 to-transparent"
-      />
-      <div className="relative mt-auto min-w-0">
-        <Skeleton className="mb-2.5 h-8 w-8 rounded-md sm:h-9 sm:w-9" />
-        <div className="space-y-2">
-          <Skeleton className="h-4 w-full rounded-md" />
-          <Skeleton className="h-4 w-4/5 rounded-md" />
-          <Skeleton className="h-3 w-1/3 rounded-md" />
-        </div>
+        className={cn(
+          "relative flex flex-col overflow-hidden border border-border bg-sidebar",
+          DOCUMENT_CARD_PADDING,
+          DOCUMENT_CARD_RADIUS,
+          DOCUMENT_CARD_HEIGHT
+        )}
+      >
+        <div
+          aria-hidden
+          className={cn(
+            "pointer-events-none absolute inset-x-0 top-0 bg-gradient-to-b from-border/15 to-transparent",
+            DOCUMENT_COLOR_FADE_HEIGHT
+          )}
+        />
+        <Skeleton className={cn("relative mt-auto", DOCUMENT_ICON_CLASS, "rounded-md")} />
+      </div>
+      <div className={cn(DOCUMENT_CARD_CAPTION_GAP, "space-y-1")}>
+        <Skeleton className="h-3 w-full rounded-md sm:h-3.5" />
+        <Skeleton className="h-2.5 w-1/3 rounded-md" />
       </div>
     </div>
   );
@@ -46,20 +64,39 @@ function DocumentPageCardSkeleton() {
 
 function FolderCardSkeleton() {
   return (
-    <div className={cn("relative block shrink-0", "w-60 sm:w-64", DOCUMENT_CARD_HEIGHT)}>
-      <Skeleton className="absolute left-0 top-0 z-0 h-6 w-[42%] rounded-t-[14px] border border-border/60 border-b-0" />
-      <div className="absolute inset-x-0 bottom-0 top-4 z-10 flex flex-col overflow-hidden rounded-2xl rounded-tl-md border border-border bg-sidebar p-4">
-        <div
-          aria-hidden
-          className="pointer-events-none absolute inset-x-0 top-0 h-20 rounded-t-2xl rounded-tl-md bg-gradient-to-b from-border/15 to-transparent"
+    <div className={cn("flex shrink-0 flex-col", FOLDER_CARD_WIDTH)}>
+      <div className={cn("relative block", FOLDER_CARD_WIDTH, DOCUMENT_CARD_HEIGHT)}>
+        <Skeleton
+          className={cn(
+            "absolute left-0 top-0 z-0 w-[42%] border border-border/60 border-b-0",
+            FOLDER_TAB_HEIGHT,
+            FOLDER_TAB_RADIUS
+          )}
         />
-        <div className="relative mt-auto min-w-0">
-          <Skeleton className="mb-2.5 h-8 w-8 rounded-md sm:h-9 sm:w-9" />
-          <div className="space-y-2">
-            <Skeleton className="h-4 w-4/5 rounded-md" />
-            <Skeleton className="h-3 w-1/3 rounded-md" />
-          </div>
+        <div
+          className={cn(
+            "absolute inset-x-0 bottom-0 z-10 flex flex-col overflow-hidden border border-border bg-sidebar",
+            FOLDER_BODY_OFFSET,
+            DOCUMENT_CARD_PADDING,
+            DOCUMENT_CARD_RADIUS,
+            FOLDER_BODY_RADIUS
+          )}
+        >
+          <div
+            aria-hidden
+            className={cn(
+              "pointer-events-none absolute inset-x-0 top-0 bg-gradient-to-b from-border/15 to-transparent",
+              DOCUMENT_CARD_RADIUS,
+              FOLDER_BODY_RADIUS,
+              DOCUMENT_COLOR_FADE_HEIGHT
+            )}
+          />
+          <Skeleton className={cn("relative mt-auto", DOCUMENT_ICON_CLASS, "rounded-md")} />
         </div>
+      </div>
+      <div className={cn(DOCUMENT_CARD_CAPTION_GAP, "space-y-1")}>
+        <Skeleton className="h-3 w-4/5 rounded-md sm:h-3.5" />
+        <Skeleton className="h-2.5 w-1/3 rounded-md" />
       </div>
     </div>
   );
@@ -68,11 +105,11 @@ function FolderCardSkeleton() {
 function DocumentSectionRowSkeleton() {
   return (
     <section aria-hidden>
-      <div className="mb-3 flex items-center gap-2">
+      <div className="mb-2.5 flex items-center gap-2">
         <Skeleton className="h-4 w-4 rounded-sm" />
-        <Skeleton className="h-4 w-28 rounded-md" />
+        <Skeleton className="h-4 w-28 rounded-md sm:h-5" />
       </div>
-      <div className="flex gap-3 overflow-hidden pb-1">
+      <div className="flex gap-2 overflow-hidden pb-1">
         <NewDocumentCardSkeleton />
         <FolderCardSkeleton />
         <DocumentPageCardSkeleton />
@@ -89,7 +126,7 @@ export function DocumentsSectionsSkeleton({
 }) {
   return (
     <div
-      className={cn("space-y-10", className)}
+      className={cn("space-y-7", className)}
       aria-busy="true"
       aria-label="กำลังโหลดเอกสาร"
     >

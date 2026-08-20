@@ -14,7 +14,6 @@ type AppShellProps = {
 export function AppShell({ children }: AppShellProps) {
   const isDesktop = useMediaQuery(DESKTOP_MEDIA_QUERY);
   const [open, setOpen] = useState(false);
-  const [collapsed, setCollapsed] = useState(false);
   const [hasInitialized, setHasInitialized] = useState(false);
 
   useEffect(() => {
@@ -30,7 +29,6 @@ export function AppShell({ children }: AppShellProps) {
       return;
     }
     setOpen(false);
-    setCollapsed(false);
   }, [isDesktop, hasInitialized]);
 
   useEffect(() => {
@@ -43,7 +41,6 @@ export function AppShell({ children }: AppShellProps) {
   }, [open, isDesktop]);
 
   const closeSidebar = () => setOpen(false);
-  const sidebarCollapsed = isDesktop && collapsed;
 
   return (
     <div className="flex min-h-screen min-w-0">
@@ -65,9 +62,6 @@ export function AppShell({ children }: AppShellProps) {
 
       <AppSidebar
         open={open}
-        collapsed={sidebarCollapsed}
-        isMobile={!isDesktop}
-        onToggleCollapsed={() => setCollapsed((value) => !value)}
         onCloseSidebar={() => setOpen(false)}
         onNavigate={!isDesktop ? closeSidebar : undefined}
       />
@@ -75,7 +69,7 @@ export function AppShell({ children }: AppShellProps) {
       <div
         className={cn(
           "flex min-h-screen min-w-0 flex-1 flex-col bg-background transition-[margin-left] duration-300 ease-in-out",
-          isDesktop && open && (sidebarCollapsed ? "md:ml-[76px]" : "md:ml-[280px]")
+          isDesktop && open && "md:ml-[280px]"
         )}
       >
         <AppTopbar

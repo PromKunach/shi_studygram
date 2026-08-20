@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { DocumentCardCaptionMenu } from "@/components/documents/document-card-caption-menu";
 import {
   getDocumentColorStyles,
   type DocumentColorId,
@@ -9,9 +10,20 @@ import {
   type DocumentIconId,
 } from "@/lib/document-icons";
 import { cn } from "@/lib/utils";
-
-const DOCUMENT_CARD_WIDTH = "w-36 sm:w-40";
-const DOCUMENT_CARD_HEIGHT = "h-[calc(9rem*5/4)] sm:h-[calc(10rem*5/4)]";
+import {
+  DOCUMENT_CARD_CAPTION_GAP,
+  DOCUMENT_CARD_HEIGHT,
+  DOCUMENT_CARD_PADDING,
+  DOCUMENT_CARD_RADIUS,
+  DOCUMENT_CARD_WIDTH,
+  DOCUMENT_COLOR_FADE_HEIGHT,
+  DOCUMENT_ICON_CLASS,
+  FOLDER_BODY_OFFSET,
+  FOLDER_BODY_RADIUS,
+  FOLDER_CARD_WIDTH,
+  FOLDER_TAB_HEIGHT,
+  FOLDER_TAB_RADIUS,
+} from "@/components/documents/document-card-metrics";
 
 export type DocumentItem = {
   id: string;
@@ -25,7 +37,10 @@ export type DocumentItem = {
 type DocumentCardProps = {
   document: DocumentItem;
   href?: string;
-  onClick?: () => void;
+  onOpen?: () => void;
+  onEdit?: () => void;
+  onDelete?: () => void;
+  isBusy?: boolean;
   highlighted?: boolean;
   className?: string;
 };
@@ -37,186 +52,279 @@ function iconColorProps(
   return highlighted && colorStyles.hasColor
     ? {
         style: { color: colorStyles.accent } as const,
-        className: "h-8 w-8 sm:h-9 sm:w-9",
+        className: DOCUMENT_ICON_CLASS,
       }
     : {
         style: undefined,
-        className: "h-8 w-8 text-muted sm:h-9 sm:w-9",
+        className: cn(DOCUMENT_ICON_CLASS, "text-muted"),
       };
 }
 
-function CardTextBlock({
+function CardCaption({
   title,
   updatedAt,
+  className,
 }: {
   title: string;
   updatedAt?: string;
+  className?: string;
 }) {
   return (
-    <div className="relative min-w-0">
-      <p className="line-clamp-2 text-left text-sm font-medium leading-snug text-foreground">
+    <div className={cn("min-w-0", DOCUMENT_CARD_CAPTION_GAP, className)}>
+      <p className="line-clamp-2 text-left text-xs font-medium leading-snug text-foreground sm:text-sm">
         {title}
       </p>
-      {updatedAt && <p className="mt-2 text-xs text-muted">{updatedAt}</p>}
-    </div>
-  );
-}
-
-function CardFooterContent({
-  Icon,
-  highlighted,
-  colorStyles,
-  title,
-  updatedAt,
-}: {
-  Icon: ReturnType<typeof getDocumentIcon>;
-  highlighted: boolean;
-  colorStyles: ReturnType<typeof getDocumentColorStyles>;
-  title: string;
-  updatedAt?: string;
-}) {
-  return (
-    <div className="relative mt-auto min-w-0">
-      <div className="relative mb-2.5">
-        <Icon
-          {...iconColorProps(highlighted, colorStyles)}
-          strokeWidth={1.75}
-        />
-      </div>
-      <CardTextBlock title={title} updatedAt={updatedAt} />
-    </div>
-  );
-}
-
-function DocumentPageCard({
-  document,
-  href,
-  onClick,
-  highlighted,
-  className,
-  Icon,
-  colorStyles,
-}: DocumentCardProps & {
-  Icon: ReturnType<typeof getDocumentIcon>;
-  colorStyles: ReturnType<typeof getDocumentColorStyles>;
-}) {
-  const cardClassName = cn(
-    "group relative flex aspect-[4/5] shrink-0 flex-col overflow-hidden rounded-2xl border border-border bg-sidebar p-4 transition-colors hover:bg-hover",
-    DOCUMENT_CARD_WIDTH,
-    className
-  );
-
-  const content = (
-    <>
-      {colorStyles.hasColor && (
-        <div
-          aria-hidden
-          className="pointer-events-none absolute inset-x-0 top-0 h-20"
-          style={{ background: colorStyles.cardFill }}
-        />
+      {updatedAt && (
+        <p className="mt-0.5 text-[10px] text-muted sm:text-xs">{updatedAt}</p>
       )}
+    </div>
+  );
+}
 
-      <CardFooterContent
-        Icon={Icon}
-        highlighted={!!highlighted}
-        colorStyles={colorStyles}
+function CardCaptionRow({
+  document,
+  widthClass,
+  onEdit,
+  onDelete,
+  isBusy,
+}: {
+  document: DocumentItem;
+  widthClass: string;
+  onEdit?: () => void;
+  onDelete?: () => void;
+  isBusy?: boolean;
+}) {
+  if (onEdit && onDelete) {
+    return (
+      <DocumentCardCaptionMenu
         title={document.title}
         updatedAt={document.updatedAt}
+        typeLabel={document.type === "folder" ? "folder" : "document"}
+        className={widthClass}
+        onEdit={onEdit}
+        onDelete={onDelete}
+        isBusy={isBusy}
       />
-    </>
-  );
-
-  if (onClick) {
-    return (
-      <button
-        type="button"
-        onClick={onClick}
-        className={cn(cardClassName, "cursor-pointer text-left")}
-      >
-        {content}
-      </button>
     );
   }
 
   return (
-    <Link href={href ?? "#"} className={cardClassName}>
-      {content}
-    </Link>
+    <CardCaption
+      title={document.title}
+      updatedAt={document.updatedAt}
+      className={widthClass}
+    />
   );
 }
 
-function FolderCard({
-  document,
-  href,
-  onClick,
+function CardIconContent({
+  Icon,
+  highlighted,
+  colorStyles,
+}: {
+  Icon: ReturnType<typeof getDocumentIcon>;
+  highlighted: boolean;
+  colorStyles: ReturnType<typeof getDocumentColorStyles>;
+}) {
+  return (
+    <div className="relative mt-auto">
+      <Icon {...iconColorProps(highlighted, colorStyles)} strokeWidth={1.75} />
+    </div>
+  );
+}
+
+function DocumentPageCardSurface({
   highlighted,
   className,
   Icon,
   colorStyles,
-}: DocumentCardProps & {
+  children,
+}: {
+  highlighted: boolean;
+  className?: string;
+  Icon: ReturnType<typeof getDocumentIcon>;
+  colorStyles: ReturnType<typeof getDocumentColorStyles>;
+  children?: React.ReactNode;
+}) {
+  return (
+    <div
+      className={cn(
+        "group/card relative flex aspect-[4/5] flex-col overflow-hidden border border-border bg-sidebar transition-colors hover:bg-hover",
+        DOCUMENT_CARD_PADDING,
+        DOCUMENT_CARD_RADIUS,
+        DOCUMENT_CARD_WIDTH,
+        className
+      )}
+    >
+      {colorStyles.hasColor && (
+        <div
+          aria-hidden
+          className={cn(
+            "pointer-events-none absolute inset-x-0 top-0",
+            DOCUMENT_COLOR_FADE_HEIGHT
+          )}
+          style={{ background: colorStyles.cardFill }}
+        />
+      )}
+
+      {children ?? (
+        <CardIconContent
+          Icon={Icon}
+          highlighted={highlighted}
+          colorStyles={colorStyles}
+        />
+      )}
+    </div>
+  );
+}
+
+function FolderCardSurface({
+  highlighted,
+  className,
+  Icon,
+  colorStyles,
+}: {
+  highlighted: boolean;
+  className?: string;
   Icon: ReturnType<typeof getDocumentIcon>;
   colorStyles: ReturnType<typeof getDocumentColorStyles>;
 }) {
-  const cardClassName = cn(
-    "group relative block w-60 shrink-0 sm:w-64",
-    DOCUMENT_CARD_HEIGHT,
-    className
-  );
-
-  const content = (
-    <>
+  return (
+    <div className={cn("relative block shrink-0", FOLDER_CARD_WIDTH, DOCUMENT_CARD_HEIGHT, className)}>
       <div
         aria-hidden
         className={cn(
-          "absolute left-0 top-0 z-0 h-6 w-[42%] rounded-t-[14px] border border-border border-b-0 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)]",
+          "absolute left-0 top-0 z-0 w-[42%] border border-border border-b-0 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)]",
+          FOLDER_TAB_HEIGHT,
+          FOLDER_TAB_RADIUS,
           !colorStyles.hasColor && "bg-sidebar"
         )}
         style={colorStyles.hasColor ? { background: colorStyles.tabFill } : undefined}
       />
 
-      <div className="absolute inset-x-0 bottom-0 top-4 z-10 flex flex-col overflow-hidden rounded-2xl rounded-tl-md border border-border bg-sidebar p-4 transition-colors group-hover:bg-hover">
+      <div
+        className={cn(
+          "absolute inset-x-0 bottom-0 z-10 flex flex-col overflow-hidden border border-border bg-sidebar transition-colors group-hover/card:bg-hover",
+          FOLDER_BODY_OFFSET,
+          DOCUMENT_CARD_PADDING,
+          DOCUMENT_CARD_RADIUS,
+          FOLDER_BODY_RADIUS
+        )}
+      >
         {colorStyles.hasColor && (
           <div
             aria-hidden
-            className="pointer-events-none absolute inset-x-0 top-0 h-20 rounded-t-2xl rounded-tl-md"
+            className={cn(
+              "pointer-events-none absolute inset-x-0 top-0",
+              DOCUMENT_CARD_RADIUS,
+              FOLDER_BODY_RADIUS,
+              DOCUMENT_COLOR_FADE_HEIGHT
+            )}
             style={{ background: colorStyles.cardFill }}
           />
         )}
 
-        <CardFooterContent
+        <CardIconContent
           Icon={Icon}
-          highlighted={!!highlighted}
+          highlighted={highlighted}
           colorStyles={colorStyles}
-          title={document.title}
-          updatedAt={document.updatedAt}
         />
       </div>
-    </>
+    </div>
+  );
+}
+
+function DocumentCardFrame({
+  document,
+  href,
+  onOpen,
+  onEdit,
+  onDelete,
+  isBusy,
+  highlighted,
+  className,
+  Icon,
+  colorStyles,
+  isFolder,
+}: DocumentCardProps & {
+  Icon: ReturnType<typeof getDocumentIcon>;
+  colorStyles: ReturnType<typeof getDocumentColorStyles>;
+  isFolder: boolean;
+}) {
+  const widthClass = isFolder ? FOLDER_CARD_WIDTH : DOCUMENT_CARD_WIDTH;
+
+  const surface = isFolder ? (
+    <FolderCardSurface
+      highlighted={!!highlighted}
+      Icon={Icon}
+      colorStyles={colorStyles}
+    />
+  ) : (
+    <DocumentPageCardSurface
+      highlighted={!!highlighted}
+      Icon={Icon}
+      colorStyles={colorStyles}
+    />
   );
 
-  if (onClick) {
+  const caption = (
+    <CardCaptionRow
+      document={document}
+      widthClass={widthClass}
+      onEdit={onEdit}
+      onDelete={onDelete}
+      isBusy={isBusy}
+    />
+  );
+
+  const wrapperClassName = cn(
+    "group flex shrink-0 flex-col text-left",
+    widthClass,
+    className
+  );
+
+  const surfaceClassName = cn(
+    "block w-full text-left",
+    onOpen && "cursor-pointer"
+  );
+
+  if (onOpen) {
     return (
-      <button
-        type="button"
-        onClick={onClick}
-        className={cn(cardClassName, "cursor-pointer text-left")}
-      >
-        {content}
-      </button>
+      <div className={wrapperClassName}>
+        <button type="button" onClick={onOpen} className={surfaceClassName}>
+          {surface}
+        </button>
+        {caption}
+      </div>
+    );
+  }
+
+  if (href) {
+    return (
+      <div className={wrapperClassName}>
+        <Link href={href} className={surfaceClassName}>
+          {surface}
+        </Link>
+        {caption}
+      </div>
     );
   }
 
   return (
-    <Link href={href ?? "#"} className={cardClassName}>
-      {content}
-    </Link>
+    <div className={wrapperClassName}>
+      <div className={surfaceClassName}>{surface}</div>
+      {caption}
+    </div>
   );
 }
 
 export function DocumentCard({
   document,
   href,
-  onClick,
+  onOpen,
+  onEdit,
+  onDelete,
+  isBusy,
   highlighted = false,
   className,
 }: DocumentCardProps) {
@@ -224,29 +332,19 @@ export function DocumentCard({
   const colorStyles = getDocumentColorStyles(document.color);
   const isFolder = document.type === "folder";
 
-  if (isFolder) {
-    return (
-      <FolderCard
-        document={document}
-        href={href}
-        onClick={onClick}
-        highlighted={highlighted}
-        className={className}
-        Icon={Icon}
-        colorStyles={colorStyles}
-      />
-    );
-  }
-
   return (
-    <DocumentPageCard
+    <DocumentCardFrame
       document={document}
       href={href}
-      onClick={onClick}
+      onOpen={onOpen}
+      onEdit={onEdit}
+      onDelete={onDelete}
+      isBusy={isBusy}
       highlighted={highlighted}
       className={className}
       Icon={Icon}
       colorStyles={colorStyles}
+      isFolder={isFolder}
     />
   );
 }
@@ -270,10 +368,26 @@ export function DocumentCardPreview({
     color,
   };
 
+  const Icon = getDocumentIcon(previewDocument.icon);
+  const colorStyles = getDocumentColorStyles(previewDocument.color);
+  const isFolder = previewDocument.type === "folder";
+
   return (
     <div className="flex justify-center overflow-hidden py-1">
-      <div className="-mb-[3rem] origin-top scale-[0.72] sm:-mb-[2.75rem] sm:scale-[0.78]">
-        <DocumentCard document={previewDocument} href="#" highlighted />
+      <div className="-mb-[2.1rem] origin-top scale-[0.72] sm:-mb-[2rem] sm:scale-[0.78]">
+        <div
+          className={cn(
+            "flex flex-col",
+            isFolder ? FOLDER_CARD_WIDTH : DOCUMENT_CARD_WIDTH
+          )}
+        >
+          {isFolder ? (
+            <FolderCardSurface highlighted Icon={Icon} colorStyles={colorStyles} />
+          ) : (
+            <DocumentPageCardSurface highlighted Icon={Icon} colorStyles={colorStyles} />
+          )}
+          <CardCaption title={previewDocument.title} />
+        </div>
       </div>
     </div>
   );
