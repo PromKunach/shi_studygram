@@ -1,9 +1,16 @@
 import type { LucideIcon } from "lucide-react";
 import {
   CalendarDays,
+  FileText,
   Folder,
   Home,
 } from "lucide-react";
+import { getDocumentIcon, type DocumentIconId } from "@/lib/document-icons";
+import {
+  formatRecentVisitedAt,
+  readRecentPages,
+  type RecentPageRecord,
+} from "@/lib/recent-pages";
 
 // ---------------------------------------------
 // Config — edit this to reshape the nav
@@ -37,24 +44,6 @@ export type ContentPageRef = {
   visitedAt?: string;
 };
 
-/** Recently visited content pages — replace with real history later (e.g. Supabase). */
-export const RECENTLY_VISITED: ContentPageRef[] = [
-  { id: "english", title: "English", slug: "/announces", visitedAt: "Jul 9" },
-  { id: "announces", title: "เอกสาร", slug: "/announces", visitedAt: "Jul 9" },
-  {
-    id: "appointment",
-    title: "กำหนดการณ์",
-    slug: "/appointment",
-    visitedAt: "Jul 3",
-  },
-];
-
-/** @deprecated Use RECENTLY_VISITED — kept for sidebar Recent dropdown. */
-export const RECENT_PAGES = RECENTLY_VISITED.map((page) => ({
-  label: page.title,
-  href: page.slug,
-}));
-
 export const RECENT_SECTION_LABEL = "Recent";
 
 /** Display metadata for a content page at a given URL slug. */
@@ -68,14 +57,24 @@ export function getPageMeta(slug: string) {
   return PAGE_META[slug.trim()];
 }
 
+export function resolveRecentPageDisplay(page: RecentPageRecord) {
+  const routeMeta = getPageMeta(page.href);
+  const icon: LucideIcon = page.iconId
+    ? getDocumentIcon(page.iconId as DocumentIconId)
+    : routeMeta?.icon ?? FileText;
+
+  return {
+    id: page.id,
+    title: page.title,
+    href: page.href,
+    slug: page.href,
+    visitedAt: formatRecentVisitedAt(page.visitedAt),
+    icon,
+  };
+}
+
 export function getRecentlyVisitedPages() {
-  return RECENTLY_VISITED.map((page) => {
-    const meta = getPageMeta(page.slug);
-    return {
-      ...page,
-      icon: meta?.icon ?? Home,
-    };
-  });
+  return readRecentPages().map(resolveRecentPageDisplay);
 }
 
 export const NAV_TOP: NavItem[] = [

@@ -1,8 +1,8 @@
 "use client";
 
-import { useEffect, useId, useRef, useState } from "react";
+import { useEffect, useId, useLayoutEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { Eye, Pencil, Plus, X } from "lucide-react";
+import { ExternalLink, Eye, Link, Pencil, Plus, X, type LucideIcon } from "lucide-react";
 import { AnimatePresence, motion } from "motion/react";
 import { toGoogleDrivePreviewUrl } from "@/lib/document-blocks";
 import { cn } from "@/lib/utils";
@@ -31,6 +31,8 @@ type GoogleDriveFormPopoverProps = {
   left: number;
   initialValues?: GoogleDriveFormValues;
   title?: string;
+  urlPlaceholder?: string;
+  kind?: "google-drive" | "link";
   onClose: () => void;
   onSubmit: (values: GoogleDriveFormValues) => void;
 };
@@ -43,6 +45,8 @@ export function GoogleDriveFormPopover({
   left,
   initialValues,
   title = "Google Drive",
+  urlPlaceholder = "ลิงก์ Google Drive",
+  kind = "google-drive",
   onClose,
   onSubmit,
 }: GoogleDriveFormPopoverProps) {
@@ -103,7 +107,11 @@ export function GoogleDriveFormPopover({
     >
       <div className="flex items-center justify-between border-b border-border px-3 py-2">
         <div className="flex items-center gap-2">
-          <GoogleDriveLogo className="h-4 w-4" />
+          {kind === "link" ? (
+            <Link className="h-4 w-4 text-muted" />
+          ) : (
+            <GoogleDriveLogo className="h-4 w-4" />
+          )}
           <p className="text-xs font-medium text-foreground">{title}</p>
         </div>
         <button
@@ -141,7 +149,7 @@ export function GoogleDriveFormPopover({
               handleSubmit();
             }
           }}
-          placeholder="ลิงก์ Google Drive"
+          placeholder={urlPlaceholder}
           className="h-8 w-full rounded-md border border-border bg-sidebar px-2.5 text-sm text-foreground outline-none placeholder:text-muted focus:border-foreground/20"
         />
 
@@ -157,7 +165,7 @@ export function GoogleDriveFormPopover({
           )}
         >
           <Plus className="h-3.5 w-3.5" />
-          เพิ่ม
+          {kind === "link" ? "เพิ่มลิงก์" : "เพิ่ม"}
         </button>
       </div>
     </div>,
@@ -165,28 +173,35 @@ export function GoogleDriveFormPopover({
   );
 }
 
-type GoogleDriveInlineMenuProps = {
+type DocumentChipMenuProps = {
   open: boolean;
   top: number;
   left: number;
-  url: string;
   onClose: () => void;
   onEdit: () => void;
-  onPreview: () => void;
+  secondaryLabel: string;
+  onSecondary: () => void;
+  SecondaryIcon?: LucideIcon;
 };
 
 const MENU_WIDTH = 152;
 
-export function GoogleDriveInlineMenu({
+export function DocumentChipMenu({
   open,
   top,
   left,
-  url,
   onClose,
   onEdit,
-  onPreview,
-}: GoogleDriveInlineMenuProps) {
+  secondaryLabel,
+  onSecondary,
+  SecondaryIcon = Eye,
+}: DocumentChipMenuProps) {
   const menuId = useId();
+  const [mounted, setMounted] = useState(false);
+
+  useLayoutEffect(() => {
+    setMounted(true);
+  }, []);
 
   useEffect(() => {
     if (!open) return;
@@ -203,7 +218,7 @@ export function GoogleDriveInlineMenu({
     return () => document.removeEventListener("mousedown", closeOnOutside);
   }, [menuId, onClose, open]);
 
-  if (!open) return null;
+  if (!open || !mounted) return null;
 
   return createPortal(
     <div
@@ -234,13 +249,13 @@ export function GoogleDriveInlineMenu({
         role="menuitem"
         onMouseDown={(event) => event.preventDefault()}
         onClick={() => {
-          onPreview();
+          onSecondary();
           onClose();
         }}
         className="flex w-full cursor-pointer items-center gap-2 rounded-lg px-2.5 py-2 text-left text-sm text-foreground transition-colors hover:bg-hover"
       >
-        <Eye className="h-4 w-4 text-muted" />
-        พรีวิว
+        <SecondaryIcon className="h-4 w-4 text-muted" />
+        {secondaryLabel}
       </button>
     </div>,
     document.body
@@ -262,6 +277,12 @@ export function GoogleDrivePreviewModal({
   onClose,
   onEdit,
 }: GoogleDrivePreviewModalProps) {
+  const [mounted, setMounted] = useState(false);
+
+  useLayoutEffect(() => {
+    setMounted(true);
+  }, []);
+
   useEffect(() => {
     if (!open) return;
 
@@ -280,6 +301,8 @@ export function GoogleDrivePreviewModal({
   }, [onClose, open]);
 
   const previewUrl = toGoogleDrivePreviewUrl(url);
+
+  if (!mounted) return null;
 
   return createPortal(
     <AnimatePresence>
@@ -326,6 +349,17 @@ export function GoogleDrivePreviewModal({
                   แก้ไข
                 </button>
               )}
+              {url.trim() ? (
+                <a
+                  href={url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex shrink-0 cursor-pointer items-center gap-1.5 rounded-lg border border-border px-2.5 py-1.5 text-xs font-medium text-foreground transition-colors hover:bg-hover"
+                >
+                  <ExternalLink className="h-3.5 w-3.5 text-muted" />
+                  Open on new page
+                </a>
+              ) : null}
               <button
                 type="button"
                 onClick={onClose}
@@ -358,30 +392,67 @@ export function GoogleDrivePreviewModal({
   );
 }
 
-export function createInlineChipElement(inline: {
-  id: string;
-  name: string;
-  url: string;
-}) {
+export function createInlineChipElement(
+  inline: {
+    id: string;
+    name: string;
+    url: string;
+    type?: "google-drive" | "link";
+  },
+  options?: { isFirstOnLine?: boolean }
+) {
   const chip = document.createElement("span");
   chip.contentEditable = "false";
   chip.dataset.inlineId = inline.id;
+  chip.dataset.inlineType = inline.type ?? "google-drive";
   chip.dataset.driveUrl = inline.url;
   chip.dataset.driveName = inline.name;
-  chip.className =
-    "mx-1 inline-flex max-w-[12rem] translate-y-[-1px] cursor-pointer items-center gap-1 rounded-md border border-border bg-sidebar px-2 py-0.5 align-middle text-sm font-medium text-foreground select-none";
+  chip.className = [
+    "inline-flex max-w-[12rem] translate-y-[-1px] cursor-pointer items-center gap-1 rounded-md border border-border bg-sidebar px-2 py-0.5 align-middle text-sm font-medium text-foreground select-none",
+    options?.isFirstOnLine ? "mr-1" : "mx-1",
+  ].join(" ");
 
-  const icon = document.createElement("img");
-  icon.src = GOOGLE_DRIVE_LOGO_SRC;
-  icon.alt = "";
-  icon.className = "h-3.5 w-3.5 shrink-0 object-contain";
-  icon.draggable = false;
+  if (inline.type === "link") {
+    chip.appendChild(createLinkIconElement());
+  } else {
+    const icon = document.createElement("img");
+    icon.src = GOOGLE_DRIVE_LOGO_SRC;
+    icon.alt = "";
+    icon.className = "h-3.5 w-3.5 shrink-0 object-contain";
+    icon.draggable = false;
+    chip.appendChild(icon);
+  }
 
   const label = document.createElement("span");
   label.className = "truncate";
   label.textContent = inline.name;
 
-  chip.appendChild(icon);
   chip.appendChild(label);
   return chip;
+}
+
+function createLinkIconElement() {
+  const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+  svg.setAttribute("viewBox", "0 0 24 24");
+  svg.setAttribute("fill", "none");
+  svg.setAttribute("stroke", "currentColor");
+  svg.setAttribute("stroke-width", "2");
+  svg.setAttribute("stroke-linecap", "round");
+  svg.setAttribute("stroke-linejoin", "round");
+  svg.setAttribute("aria-hidden", "true");
+  svg.setAttribute("class", "h-3.5 w-3.5 shrink-0 text-muted");
+
+  const pathOne = document.createElementNS("http://www.w3.org/2000/svg", "path");
+  pathOne.setAttribute(
+    "d",
+    "M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"
+  );
+  const pathTwo = document.createElementNS("http://www.w3.org/2000/svg", "path");
+  pathTwo.setAttribute(
+    "d",
+    "M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"
+  );
+  svg.appendChild(pathOne);
+  svg.appendChild(pathTwo);
+  return svg;
 }

@@ -7,15 +7,15 @@ import { usePathname } from "next/navigation";
 import { motion } from "motion/react";
 import { ChevronLeft, ChevronRight, Clock } from "lucide-react";
 import {
-  getPageMeta,
   isExternalHref,
   isExactNavMatch,
   isNavItemActive,
   NAV_SECTIONS,
-  RECENT_PAGES,
   RECENT_SECTION_LABEL,
+  resolveRecentPageDisplay,
   type NavSubItem,
 } from "@/lib/navigation";
+import { useRecentPages } from "@/hooks/use-recent-pages";
 import { cn } from "@/lib/utils";
 
 type AppSidebarProps = {
@@ -67,6 +67,8 @@ function RecentSection({
   pathname: string;
   onNavigate?: () => void;
 }) {
+  const recentPages = useRecentPages().map(resolveRecentPageDisplay);
+
   return (
     <div className="mt-5">
       <button
@@ -93,16 +95,15 @@ function RecentSection({
         )}
       >
         <div className="overflow-hidden">
-          {RECENT_PAGES.length === 0 ? (
+          {recentPages.length === 0 ? (
             <p className="px-2.5 py-1.5 text-sm text-muted">No recent pages yet</p>
           ) : (
             <ul className="space-y-0.5">
-              {RECENT_PAGES.map((page) => {
+              {recentPages.map((page) => {
                 const isActive = isExactNavMatch(pathname, page.href);
-                const meta = getPageMeta(page.href);
-                const Icon = meta?.icon;
+                const Icon = page.icon;
                 return (
-                  <li key={`${page.label}-${page.href}`}>
+                  <li key={`${page.id}-${page.href}`}>
                     <Link
                       href={page.href}
                       onClick={onNavigate}
@@ -113,8 +114,8 @@ function RecentSection({
                           : "text-muted hover:text-foreground"
                       )}
                     >
-                      {Icon && <Icon className="h-4 w-4 shrink-0" />}
-                      <span className="truncate">{page.label}</span>
+                      <Icon className="h-4 w-4 shrink-0" />
+                      <span className="truncate">{page.title}</span>
                     </Link>
                   </li>
                 );

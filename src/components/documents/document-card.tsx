@@ -32,6 +32,7 @@ export type DocumentItem = {
   icon: DocumentIconId;
   color: DocumentColorId;
   updatedAt?: string;
+  driveUrl?: string;
 };
 
 type DocumentCardProps = {

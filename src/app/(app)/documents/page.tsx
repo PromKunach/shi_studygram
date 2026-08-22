@@ -8,6 +8,7 @@ import {
   type CreateDocumentPayload,
 } from "@/components/documents/create-document-dialog";
 import { CreateSectionDialog } from "@/components/documents/create-section-dialog";
+import { GoogleDrivePreviewModal } from "@/components/documents/document-google-drive-inline";
 import type { DocumentItem } from "@/components/documents/document-card";
 import {
   DocumentSectionRow,
@@ -86,6 +87,10 @@ export default function DocumentsPage() {
   const [editingDocument, setEditingDocument] = useState<DocumentItem | null>(
     null
   );
+  const [drivePreview, setDrivePreview] = useState<{
+    name: string;
+    url: string;
+  } | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [hasLoaded, setHasLoaded] = useState(false);
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -337,6 +342,13 @@ export default function DocumentsPage() {
                   }
                   onNewDocument={openCreateDocument}
                   onOpenFolder={(folder) => enterFolder(section.id, folder)}
+                  onOpenDriveDocument={(document) => {
+                    if (!document.driveUrl) return;
+                    setDrivePreview({
+                      name: document.title,
+                      url: document.driveUrl,
+                    });
+                  }}
                   onEditDocument={setEditingDocument}
                   onDeleteDocument={(document) =>
                     void handleDeleteDocument(document)
@@ -372,6 +384,13 @@ export default function DocumentsPage() {
           isBusy={isSaving}
         />
       )}
+
+      <GoogleDrivePreviewModal
+        open={drivePreview !== null}
+        name={drivePreview?.name ?? ""}
+        url={drivePreview?.url ?? ""}
+        onClose={() => setDrivePreview(null)}
+      />
     </main>
   );
 }

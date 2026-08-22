@@ -8,7 +8,10 @@ import {
 } from "@/components/documents/document-card";
 import { NewDocumentCard } from "@/components/documents/new-document-card";
 import { DOCUMENT_ROW_GAP, DOCUMENT_SCROLL_STEP } from "@/components/documents/document-card-metrics";
-import type { DocumentBreadcrumbSegment } from "@/lib/documents";
+import {
+  hasDocumentDriveLink,
+  type DocumentBreadcrumbSegment,
+} from "@/lib/documents";
 import { sortDocumentsWithFoldersFirst } from "@/lib/document-icons";
 import { cn } from "@/lib/utils";
 
@@ -26,6 +29,7 @@ type DocumentSectionRowProps = {
   onNavigateBreadcrumb: (index: number) => void;
   onNewDocument: (parentId: string) => void;
   onOpenFolder: (document: DocumentItem) => void;
+  onOpenDriveDocument?: (document: DocumentItem) => void;
   onEditDocument: (document: DocumentItem) => void;
   onDeleteDocument: (document: DocumentItem) => void;
   isSaving?: boolean;
@@ -53,6 +57,7 @@ export function DocumentSectionRow({
   onNavigateBreadcrumb,
   onNewDocument,
   onOpenFolder,
+  onOpenDriveDocument,
   onEditDocument,
   onDeleteDocument,
   isSaving = false,
@@ -102,6 +107,11 @@ export function DocumentSectionRow({
   const handleOpen = (document: DocumentItem) => {
     if (document.type === "folder") {
       onOpenFolder(document);
+      return;
+    }
+
+    if (hasDocumentDriveLink(document)) {
+      onOpenDriveDocument?.(document);
     }
   };
 
@@ -158,12 +168,13 @@ export function DocumentSectionRow({
                 key={document.id}
                 document={document}
                 href={
-                  document.type === "document"
+                  document.type === "document" &&
+                  !hasDocumentDriveLink(document)
                     ? `/documents/${document.id}`
                     : undefined
                 }
                 onOpen={
-                  document.type === "folder"
+                  document.type === "folder" || hasDocumentDriveLink(document)
                     ? () => handleOpen(document)
                     : undefined
                 }

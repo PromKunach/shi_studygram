@@ -9,9 +9,9 @@ import {
 import {
   blockTypeClassName,
   detectSlashTrigger,
-  isHeadingBlock,
   type DocumentBlock,
   type DocumentInline,
+  type DocumentInlineType,
 } from "@/lib/document-blocks";
 import {
   getPlainTextBeforeCursor,
@@ -38,7 +38,11 @@ type DocumentRichTextBlockProps = {
   placeholder?: string;
   className?: string;
   onChange: (patch: { text: string; inlines: DocumentInline[] }) => void;
-  onEnter: () => void;
+  onEnter: (payload: {
+    empty: boolean;
+    offset: number;
+    textLength: number;
+  }) => void;
   onEmptyBackspace: () => void;
   onSlashSync: (payload: {
     query: string;
@@ -52,6 +56,9 @@ type DocumentRichTextBlockProps = {
     inlineId: string;
     url: string;
     name: string;
+    inlineType: DocumentInlineType;
+    top: number;
+    left: number;
   }) => void;
   onRemoveInline: (inlineId: string) => void;
 };
@@ -90,18 +97,29 @@ export const DocumentRichTextBlock = forwardRef<
 
   useLayoutEffect(() => {
     const root = rootRef.current;
-    if (!root || isFocusedRef.current) return;
+    if (!root) return;
 
     const target = serializeBlock(block);
-    const current = JSON.stringify(serializeRichTextRoot(root));
+    if (target === lastSerializedRef.current) return;
 
+    const current = JSON.stringify(serializeRichTextRoot(root));
     if (current === target) {
       lastSerializedRef.current = target;
       return;
     }
 
+    const shouldRestoreCursor =
+      isFocusedRef.current || root.contains(document.activeElement);
+    const cursorOffset = shouldRestoreCursor
+      ? getSelectionTextOffset(root)
+      : null;
+
     syncRichTextDom(root, block);
     lastSerializedRef.current = target;
+
+    if (cursorOffset !== null) {
+      placeCursorAtTextOffset(root, cursorOffset);
+    }
   }, [block]);
 
   const emitChange = () => {
@@ -168,10 +186,15 @@ export const DocumentRichTextBlock = forwardRef<
         if (chip?.dataset.inlineId) {
           event.preventDefault();
           event.stopPropagation();
+          const rect = chip.getBoundingClientRect();
           onInlineClick({
             inlineId: chip.dataset.inlineId,
             url: chip.dataset.driveUrl ?? "",
             name: chip.dataset.driveName ?? "",
+            inlineType:
+              chip.dataset.inlineType === "link" ? "link" : "google-drive",
+            top: rect.bottom + 6,
+            left: rect.left,
           });
           return;
         }
@@ -191,7 +214,13 @@ export const DocumentRichTextBlock = forwardRef<
             return;
           }
           event.preventDefault();
-          onEnter();
+          const offset = getSelectionTextOffset(root);
+          const { text } = serializeRichTextRoot(root);
+          onEnter({
+            empty: isRichTextEmpty(root),
+            offset,
+            textLength: text.length,
+          });
           return;
         }
 
@@ -200,17 +229,12 @@ export const DocumentRichTextBlock = forwardRef<
           if (inlineId) {
             event.preventDefault();
             removeInlineNode(root, inlineId);
-            onRemoveInline(inlineId);
             emitChange();
             return;
           }
 
           if (isRichTextEmpty(root)) {
             event.preventDefault();
-            if (isHeadingBlock(block.type)) {
-              onChange({ text: "", inlines: [] });
-              return;
-            }
             onEmptyBackspace();
           }
         }
@@ -224,7 +248,9 @@ export const DocumentRichTextBlock = forwardRef<
       aria-label={
         block.type === "paragraph"
           ? "ย่อหน้า"
-          : `หัวข้อ ${block.type.slice(1)}`
+          : block.type === "bullet"
+            ? "รายการจุด"
+            : `หัวข้อ ${block.type.slice(1)}`
       }
     />
   );

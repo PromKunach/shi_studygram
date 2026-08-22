@@ -9,8 +9,9 @@ import {
   useState,
 } from "react";
 import { createPortal } from "react-dom";
-import { Heading1, Heading2, Heading3 } from "lucide-react";
+import { ExternalLink, Heading1, Heading2, Heading3, Link, List } from "lucide-react";
 import {
+  DocumentChipMenu,
   GoogleDriveFormPopover,
   GoogleDrivePreviewModal,
   GoogleDriveLogo,
@@ -18,32 +19,69 @@ import {
 import {
   DocumentRichTextBlock,
   focusBlockAtOffset,
+  getBlockCaretPosition,
   type DocumentRichTextBlockHandle,
 } from "@/components/documents/document-rich-text-block";
 import {
   createDocumentBlock,
-  createGoogleDriveInline,
+  createDocumentInline,
   filterSlashCommands,
   insertInlineAtOffset,
+  isBulletBlock,
   isHeadingBlock,
+  isInlineSlashCommand,
   parseDocumentContent,
   removeInlineFromBlock,
   serializeDocumentContent,
+  splitBlockAtOffset,
   wrapInlineMarkerLength,
   updateInlineInBlock,
   type DocumentBlock,
   type DocumentBlockType,
+  type DocumentInlineType,
   type SlashCommand,
 } from "@/lib/document-blocks";
+import {
+  canRedoDocumentEditor,
+  canUndoDocumentEditor,
+  clearDocumentEditorHistory,
+  cloneDocumentBlocks,
+  createDocumentEditorHistory,
+  isDocumentRedoHotkey,
+  isDocumentUndoHotkey,
+  pushDocumentUndo,
+  redoDocumentEditor,
+  undoDocumentEditor,
+  type DocumentEditorSnapshot,
+} from "@/lib/document-history";
+import { mergeBlockContentFromDom, stripInvisibleEditorText } from "@/lib/document-rich-text";
 import { cn } from "@/lib/utils";
+
+function flushBlockFromDom(
+  blocks: DocumentBlock[],
+  blockId: string,
+  getRoot: (id: string) => HTMLDivElement | null | undefined
+) {
+  return mergeBlockContentFromDom(blocks, blockId, getRoot(blockId) ?? null);
+}
+
+const TYPING_HISTORY_GROUP_MS = 400;
+
+export type DocumentEditorHistoryState = {
+  canUndo: boolean;
+  canRedo: boolean;
+};
 
 export type DocumentBlockEditorHandle = {
   focus: () => void;
+  undo: () => void;
+  redo: () => void;
 };
 
 type DocumentBlockEditorProps = {
   content: string;
   onChange: (content: string) => void;
+  onHistoryChange?: (state: DocumentEditorHistoryState) => void;
   className?: string;
 };
 
@@ -62,9 +100,19 @@ type DriveFormState = {
   insertOffset: number;
   top: number;
   left: number;
+  kind: DocumentInlineType;
   editInlineId?: string;
   initialName?: string;
   initialUrl?: string;
+};
+
+type ChipMenuState = {
+  blockId: string;
+  inlineId: string;
+  url: string;
+  name: string;
+  top: number;
+  left: number;
 };
 
 type PreviewModalState = {
@@ -84,40 +132,89 @@ function commandIcon(command: SlashCommand) {
       return Heading2;
     case "h3":
       return Heading3;
+    case "link":
+      return Link;
+    case "bullet":
+      return List;
     default:
       return Heading1;
   }
 }
 
+function openExternalUrl(url: string) {
+  const trimmed = url.trim();
+  if (!trimmed) return;
+  const href = /^[a-zA-Z][a-zA-Z0-9+.-]*:/.test(trimmed)
+    ? trimmed
+    : `https://${trimmed}`;
+  window.open(href, "_blank", "noopener,noreferrer");
+}
+
 export const DocumentBlockEditor = forwardRef<
   DocumentBlockEditorHandle,
   DocumentBlockEditorProps
->(function DocumentBlockEditor({ content, onChange, className }, ref) {
+>(function DocumentBlockEditor(
+  { content, onChange, onHistoryChange, className },
+  ref
+) {
   const [blocks, setBlocks] = useState<DocumentBlock[]>(() =>
     parseDocumentContent(content)
   );
   const [slashMenu, setSlashMenu] = useState<SlashMenuState | null>(null);
   const [driveForm, setDriveForm] = useState<DriveFormState | null>(null);
+  const [chipMenu, setChipMenu] = useState<ChipMenuState | null>(null);
   const [previewModal, setPreviewModal] = useState<PreviewModalState | null>(
     null
   );
   const blockRefs = useRef(new Map<string, DocumentRichTextBlockHandle>());
   const lastSerializedRef = useRef(content);
+  const historyRef = useRef(createDocumentEditorHistory());
+  const blocksRef = useRef(blocks);
+  const typingBaselineRef = useRef<DocumentEditorSnapshot | null>(null);
+  const typingTimerRef = useRef<number | undefined>(undefined);
+  const restoringRef = useRef(false);
+  const onHistoryChangeRef = useRef(onHistoryChange);
+  const lastHistoryStateRef = useRef<DocumentEditorHistoryState>({
+    canUndo: false,
+    canRedo: false,
+  });
 
-  useImperativeHandle(ref, () => ({
-    focus() {
-      const first = blocks[0];
-      if (!first) return;
-      blockRefs.current.get(first.id)?.focus();
-    },
-  }));
+  blocksRef.current = blocks;
+  onHistoryChangeRef.current = onHistoryChange;
+
+  const notifyHistory = useCallback(() => {
+    const next: DocumentEditorHistoryState = {
+      canUndo:
+        canUndoDocumentEditor(historyRef.current) ||
+        typingBaselineRef.current !== null,
+      canRedo: canRedoDocumentEditor(historyRef.current),
+    };
+    const previous = lastHistoryStateRef.current;
+    if (
+      previous.canUndo === next.canUndo &&
+      previous.canRedo === next.canRedo
+    ) {
+      return;
+    }
+    lastHistoryStateRef.current = next;
+    onHistoryChangeRef.current?.(next);
+  }, []);
 
   useEffect(() => {
     if (content === lastSerializedRef.current) return;
 
     setBlocks(parseDocumentContent(content));
     lastSerializedRef.current = content;
+    clearDocumentEditorHistory(historyRef.current);
+    typingBaselineRef.current = null;
+    window.clearTimeout(typingTimerRef.current);
+    lastHistoryStateRef.current = { canUndo: false, canRedo: false };
+    onHistoryChangeRef.current?.({ canUndo: false, canRedo: false });
   }, [content]);
+
+  useEffect(() => {
+    return () => window.clearTimeout(typingTimerRef.current);
+  }, []);
 
   useEffect(() => {
     const serialized = serializeDocumentContent(blocks);
@@ -126,17 +223,6 @@ export const DocumentBlockEditor = forwardRef<
     lastSerializedRef.current = serialized;
     onChange(serialized);
   }, [blocks, onChange]);
-
-  const updateBlock = useCallback(
-    (blockId: string, patch: Partial<DocumentBlock>) => {
-      setBlocks((currentBlocks) =>
-        currentBlocks.map((block) =>
-          block.id === blockId ? { ...block, ...patch } : block
-        )
-      );
-    },
-    []
-  );
 
   const emitChange = useCallback(
     (nextBlocks: DocumentBlock[]) => {
@@ -148,33 +234,223 @@ export const DocumentBlockEditor = forwardRef<
     [onChange]
   );
 
+  const snapshotCurrent = useCallback((): DocumentEditorSnapshot => {
+    const active = document.activeElement;
+    const blockRoot =
+      active instanceof HTMLElement
+        ? active.closest<HTMLElement>("[data-block-id]")
+        : null;
+    const blockId = blockRoot?.dataset.blockId;
+    const focus = blockId
+      ? {
+          blockId,
+          offset: getBlockCaretPosition(blockId)?.offset ?? 0,
+        }
+      : null;
+
+    return {
+      blocks: cloneDocumentBlocks(blocksRef.current),
+      focus,
+    };
+  }, []);
+
+  const commitTypingHistory = useCallback(() => {
+    window.clearTimeout(typingTimerRef.current);
+    const baseline = typingBaselineRef.current;
+    if (!baseline) return;
+    pushDocumentUndo(historyRef.current, baseline);
+    typingBaselineRef.current = null;
+    notifyHistory();
+  }, [notifyHistory]);
+
+  const noteTypingChange = useCallback(() => {
+    if (restoringRef.current) return;
+    if (!typingBaselineRef.current) {
+      typingBaselineRef.current = snapshotCurrent();
+    }
+    window.clearTimeout(typingTimerRef.current);
+    typingTimerRef.current = window.setTimeout(() => {
+      commitTypingHistory();
+    }, TYPING_HISTORY_GROUP_MS);
+    notifyHistory();
+  }, [commitTypingHistory, notifyHistory, snapshotCurrent]);
+
+  const captureUndoSnapshot = useCallback(() => {
+    if (restoringRef.current) return;
+    commitTypingHistory();
+    pushDocumentUndo(historyRef.current, snapshotCurrent());
+    notifyHistory();
+  }, [commitTypingHistory, notifyHistory, snapshotCurrent]);
+
+  const restoreSnapshot = useCallback(
+    (snapshot: DocumentEditorSnapshot) => {
+      restoringRef.current = true;
+      const nextBlocks = cloneDocumentBlocks(snapshot.blocks);
+      emitChange(nextBlocks);
+      setSlashMenu(null);
+      setChipMenu(null);
+      requestAnimationFrame(() => {
+        if (snapshot.focus) {
+          const focusedBlock = nextBlocks.find(
+            (block) => block.id === snapshot.focus?.blockId
+          );
+          focusBlockAtOffset(
+            snapshot.focus.blockId,
+            Math.min(snapshot.focus.offset, focusedBlock?.text.length ?? 0)
+          );
+        } else {
+          const first = nextBlocks[0];
+          if (first) blockRefs.current.get(first.id)?.focus();
+        }
+        restoringRef.current = false;
+      });
+    },
+    [emitChange]
+  );
+
+  const applyUndo = useCallback(() => {
+    commitTypingHistory();
+    const restored = undoDocumentEditor(
+      historyRef.current,
+      snapshotCurrent()
+    );
+    if (!restored) return;
+    restoreSnapshot(restored);
+    notifyHistory();
+  }, [commitTypingHistory, notifyHistory, restoreSnapshot, snapshotCurrent]);
+
+  const applyRedo = useCallback(() => {
+    commitTypingHistory();
+    const restored = redoDocumentEditor(
+      historyRef.current,
+      snapshotCurrent()
+    );
+    if (!restored) return;
+    restoreSnapshot(restored);
+    notifyHistory();
+  }, [commitTypingHistory, notifyHistory, restoreSnapshot, snapshotCurrent]);
+
+  useImperativeHandle(
+    ref,
+    () => ({
+      focus() {
+        const first = blocksRef.current[0];
+        if (!first) return;
+        blockRefs.current.get(first.id)?.focus();
+      },
+      undo: applyUndo,
+      redo: applyRedo,
+    }),
+    [applyRedo, applyUndo]
+  );
+
+  const updateBlock = useCallback(
+    (
+      blockId: string,
+      patch: Partial<DocumentBlock>,
+      historyMode: "typing" | "structural" = "typing"
+    ) => {
+      if (historyMode === "structural") {
+        captureUndoSnapshot();
+      } else {
+        noteTypingChange();
+      }
+
+      setBlocks((currentBlocks) =>
+        currentBlocks.map((block) =>
+          block.id === blockId ? { ...block, ...patch } : block
+        )
+      );
+    },
+    [captureUndoSnapshot, noteTypingChange]
+  );
+
   const insertBlockAfter = useCallback(
-    (blockId: string, type: DocumentBlockType = "paragraph") => {
-      const index = blocks.findIndex((block) => block.id === blockId);
+    (
+      blockId: string,
+      type: DocumentBlockType = "paragraph",
+      sourceBlocks = blocksRef.current
+    ) => {
+      const flushed = flushBlockFromDom(sourceBlocks, blockId, (id) =>
+        blockRefs.current.get(id)?.getRoot()
+      );
+      const index = flushed.findIndex((block) => block.id === blockId);
       if (index === -1) return null;
 
+      captureUndoSnapshot();
       const nextBlock = createDocumentBlock(type);
       const nextBlocks = [
-        ...blocks.slice(0, index + 1),
+        ...flushed.slice(0, index + 1),
         nextBlock,
-        ...blocks.slice(index + 1),
+        ...flushed.slice(index + 1),
       ];
       emitChange(nextBlocks);
       return nextBlock;
     },
-    [blocks, emitChange]
+    [captureUndoSnapshot, emitChange]
   );
 
-  const removeBlock = useCallback(
-    (blockId: string) => {
-      if (blocks.length <= 1) {
-        emitChange([createDocumentBlock()]);
+  const handleBlockEnter = useCallback(
+    (
+      blockId: string,
+      blockType: DocumentBlockType,
+      payload: { empty: boolean; offset: number; textLength: number }
+    ) => {
+      const flushed = flushBlockFromDom(blocksRef.current, blockId, (id) =>
+        blockRefs.current.get(id)?.getRoot()
+      );
+      const currentBlock = flushed.find((block) => block.id === blockId);
+      if (!currentBlock) return;
+
+      const isEmpty =
+        stripInvisibleEditorText(currentBlock.text).length === 0 &&
+        (currentBlock.inlines?.length ?? 0) === 0;
+
+      if (isBulletBlock(blockType) && isEmpty) {
+        const nextBlock = insertBlockAfter(blockId, "bullet", flushed);
+        if (!nextBlock) return;
+        requestAnimationFrame(() => {
+          focusBlockAtOffset(nextBlock.id, 0);
+        });
         return;
       }
 
-      emitChange(blocks.filter((block) => block.id !== blockId));
+      const nextType = isBulletBlock(blockType) ? "bullet" : "paragraph";
+
+      if (payload.offset < currentBlock.text.length) {
+        captureUndoSnapshot();
+        const { before, after } = splitBlockAtOffset(
+          currentBlock,
+          payload.offset
+        );
+        const afterBlock = createDocumentBlock(nextType);
+        afterBlock.text = after.text;
+        afterBlock.inlines = after.inlines;
+
+        const index = flushed.findIndex((block) => block.id === blockId);
+        const nextBlocks = [
+          ...flushed.slice(0, index),
+          { ...currentBlock, ...before },
+          afterBlock,
+          ...flushed.slice(index + 1),
+        ];
+        emitChange(nextBlocks);
+
+        const focusBlockId =
+          payload.offset === 0 ? blockId : afterBlock.id;
+        requestAnimationFrame(() => {
+          focusBlockAtOffset(focusBlockId, 0);
+        });
+        return;
+      }
+
+      const nextBlock = insertBlockAfter(blockId, nextType, flushed);
+      if (!nextBlock) return;
+      requestAnimationFrame(() => {
+        focusBlockAtOffset(nextBlock.id, 0);
+      });
     },
-    [blocks, emitChange]
+    [captureUndoSnapshot, emitChange, insertBlockAfter]
   );
 
   const applySlashCommand = useCallback(
@@ -188,14 +464,15 @@ export const DocumentBlockEditor = forwardRef<
       const after = block.text.slice(slashMenu.cursorPos);
       const nextText = `${before}${after}`;
 
-      if (command.id === "google-drive") {
-        updateBlock(block.id, { text: nextText });
+      if (isInlineSlashCommand(command.id)) {
+        updateBlock(block.id, { text: nextText }, "structural");
         setSlashMenu(null);
         setDriveForm({
           blockId: block.id,
           insertOffset: slashMenu.slashIndex,
           top: slashMenu.top,
           left: slashMenu.left,
+          kind: command.id,
         });
         requestAnimationFrame(() => {
           focusBlockAtOffset(block.id, slashMenu.slashIndex);
@@ -203,10 +480,14 @@ export const DocumentBlockEditor = forwardRef<
         return;
       }
 
-      updateBlock(block.id, {
-        type: command.id,
-        text: nextText,
-      });
+      updateBlock(
+        block.id,
+        {
+          type: command.id,
+          text: nextText,
+        },
+        "structural"
+      );
       setSlashMenu(null);
 
       requestAnimationFrame(() => {
@@ -220,25 +501,42 @@ export const DocumentBlockEditor = forwardRef<
     (block: DocumentBlock) => {
       setSlashMenu(null);
 
-      if (isHeadingBlock(block.type)) {
-        updateBlock(block.id, { type: "paragraph" });
-        requestAnimationFrame(() => blockRefs.current.get(block.id)?.focus());
+      const flushed = flushBlockFromDom(blocksRef.current, block.id, (id) =>
+        blockRefs.current.get(id)?.getRoot()
+      );
+      const currentBlock =
+        flushed.find((item) => item.id === block.id) ?? block;
+
+      if (isHeadingBlock(currentBlock.type) || isBulletBlock(currentBlock.type)) {
+        captureUndoSnapshot();
+        const nextBlocks = flushed.map((item) =>
+          item.id === block.id
+            ? { ...item, type: "paragraph" as const }
+            : item
+        );
+        emitChange(nextBlocks);
+        requestAnimationFrame(() => {
+          focusBlockAtOffset(block.id, 0);
+        });
         return;
       }
 
-      if (blocks.length <= 1) return;
+      if (flushed.length <= 1) return;
 
-      const index = blocks.findIndex((item) => item.id === block.id);
+      const index = flushed.findIndex((item) => item.id === block.id);
       const focusTarget =
-        index > 0 ? blocks[index - 1]! : blocks[index + 1]!;
+        index > 0 ? flushed[index - 1]! : flushed[index + 1]!;
 
-      removeBlock(block.id);
+      captureUndoSnapshot();
+      emitChange(flushed.filter((item) => item.id !== block.id));
 
       requestAnimationFrame(() => {
-        blockRefs.current.get(focusTarget.id)?.focus();
+        const target =
+          flushed.find((item) => item.id === focusTarget.id) ?? focusTarget;
+        focusBlockAtOffset(focusTarget.id, target.text.length);
       });
     },
-    [blocks, removeBlock, updateBlock]
+    [captureUndoSnapshot, emitChange]
   );
 
   const handleDriveFormSubmit = useCallback(
@@ -249,22 +547,30 @@ export const DocumentBlockEditor = forwardRef<
       if (!block) return;
 
       if (driveForm.editInlineId) {
-        updateBlock(block.id, {
-          ...updateInlineInBlock(block, driveForm.editInlineId, values),
-        });
+        updateBlock(
+          block.id,
+          {
+            ...updateInlineInBlock(block, driveForm.editInlineId, values),
+          },
+          "structural"
+        );
         setDriveForm(null);
         requestAnimationFrame(() => blockRefs.current.get(block.id)?.focus());
         return;
       }
 
-      const inline = createGoogleDriveInline(values.url, values.name);
+      const inline = createDocumentInline(
+        driveForm.kind,
+        values.url,
+        values.name
+      );
       const inserted = insertInlineAtOffset(
         block,
         driveForm.insertOffset,
         inline
       );
 
-      updateBlock(block.id, inserted);
+      updateBlock(block.id, inserted, "structural");
       setDriveForm(null);
 
       requestAnimationFrame(() => {
@@ -281,10 +587,38 @@ export const DocumentBlockEditor = forwardRef<
     (blockId: string, inlineId: string) => {
       const block = blocks.find((item) => item.id === blockId);
       if (!block) return;
-      updateBlock(blockId, removeInlineFromBlock(block, inlineId));
+      updateBlock(blockId, removeInlineFromBlock(block, inlineId), "structural");
     },
     [blocks, updateBlock]
   );
+
+  useEffect(() => {
+    const onKeyDown = (event: KeyboardEvent) => {
+      const target = event.target;
+      if (
+        !(target instanceof HTMLElement) ||
+        !target.closest("[data-block-id]")
+      ) {
+        return;
+      }
+
+      if (isDocumentRedoHotkey(event)) {
+        event.preventDefault();
+        event.stopPropagation();
+        applyRedo();
+        return;
+      }
+
+      if (isDocumentUndoHotkey(event)) {
+        event.preventDefault();
+        event.stopPropagation();
+        applyUndo();
+      }
+    };
+
+    document.addEventListener("keydown", onKeyDown, true);
+    return () => document.removeEventListener("keydown", onKeyDown, true);
+  }, [applyRedo, applyUndo]);
 
   useEffect(() => {
     if (!slashMenu) return;
@@ -379,73 +713,101 @@ export const DocumentBlockEditor = forwardRef<
   return (
     <div className={cn("space-y-1", className)}>
       {blocks.map((block, index) => (
-        <DocumentRichTextBlock
+        <div
           key={block.id}
-          ref={(element) => {
-            if (element) blockRefs.current.set(block.id, element);
-            else blockRefs.current.delete(block.id);
-          }}
-          block={block}
-          slashMenuActive={slashMenu?.blockId === block.id}
-          placeholder={
-            index === 0
-              ? "เริ่มพิมพ์ได้เลย หรือพิมพ์ / เพื่อเพิ่มบล็อก"
-              : undefined
-          }
-          onChange={(patch) =>
-            updateBlock(block.id, {
-              text: patch.text,
-              inlines: patch.inlines,
-            })
-          }
-          onEnter={() => {
-            const nextBlock = insertBlockAfter(block.id);
-            if (!nextBlock) return;
-            requestAnimationFrame(() =>
-              blockRefs.current.get(nextBlock.id)?.focus()
-            );
-          }}
-          onEmptyBackspace={() => handleEmptyBlockBackspace(block)}
-          onSlashSync={(payload) => {
-            if (driveForm?.blockId === block.id) return;
-            setSlashMenu((current) => {
-              const queryChanged = current?.query !== payload.query;
-              const blockChanged = current?.blockId !== block.id;
-              const filtered = filterSlashCommands(payload.query);
-              const preservedIndex =
-                blockChanged || queryChanged ? 0 : (current?.selectedIndex ?? 0);
+          className={cn(
+            "flex items-start gap-2",
+            block.type === "bullet" ? "pl-0.5" : undefined
+          )}
+        >
+          {block.type === "bullet" ? (
+            <span
+              aria-hidden
+              className="mt-[0.7em] h-1.5 w-1.5 shrink-0 rounded-full bg-foreground"
+            />
+          ) : null}
+          <DocumentRichTextBlock
+            ref={(element) => {
+              if (element) blockRefs.current.set(block.id, element);
+              else blockRefs.current.delete(block.id);
+            }}
+            block={block}
+            slashMenuActive={slashMenu?.blockId === block.id}
+            className="min-w-0 flex-1"
+            placeholder={
+              index === 0 && block.type === "paragraph"
+                ? "เริ่มพิมพ์ได้เลย หรือพิมพ์ / เพื่อเพิ่มบล็อก"
+                : undefined
+            }
+            onChange={(patch) =>
+              updateBlock(block.id, {
+                text: patch.text,
+                inlines: patch.inlines,
+              })
+            }
+            onEnter={(payload) =>
+              handleBlockEnter(block.id, block.type, payload)
+            }
+            onEmptyBackspace={() => handleEmptyBlockBackspace(block)}
+            onSlashSync={(payload) => {
+              if (driveForm?.blockId === block.id) return;
+              setSlashMenu((current) => {
+                const queryChanged = current?.query !== payload.query;
+                const blockChanged = current?.blockId !== block.id;
+                const filtered = filterSlashCommands(payload.query);
+                const preservedIndex =
+                  blockChanged || queryChanged
+                    ? 0
+                    : (current?.selectedIndex ?? 0);
 
-              return {
+                return {
+                  blockId: block.id,
+                  ...payload,
+                  selectedIndex: Math.min(
+                    preservedIndex,
+                    Math.max(filtered.length - 1, 0)
+                  ),
+                };
+              });
+            }}
+            onSlashDismiss={() => {
+              setSlashMenu((current) =>
+                current?.blockId === block.id ? null : current
+              );
+            }}
+            onInlineClick={(payload) => {
+              setChipMenu(null);
+              if (payload.inlineType === "link") {
+                setChipMenu({
+                  blockId: block.id,
+                  inlineId: payload.inlineId,
+                  url: payload.url,
+                  name: payload.name,
+                  top: payload.top,
+                  left: payload.left,
+                });
+                return;
+              }
+
+              setPreviewModal({
                 blockId: block.id,
-                ...payload,
-                selectedIndex: Math.min(
-                  preservedIndex,
-                  Math.max(filtered.length - 1, 0)
-                ),
-              };
-            });
-          }}
-          onSlashDismiss={() => {
-            setSlashMenu((current) =>
-              current?.blockId === block.id ? null : current
-            );
-          }}
-          onInlineClick={(payload) => {
-            setPreviewModal({
-              blockId: block.id,
-              inlineId: payload.inlineId,
-              url: payload.url,
-              name: payload.name,
-            });
-          }}
-          onRemoveInline={(inlineId) => handleRemoveInline(block.id, inlineId)}
-        />
+                inlineId: payload.inlineId,
+                url: payload.url,
+                name: payload.name,
+              });
+            }}
+            onRemoveInline={(inlineId) =>
+              handleRemoveInline(block.id, inlineId)
+            }
+          />
+        </div>
       ))}
 
       <GoogleDriveFormPopover
         open={driveForm !== null}
         top={driveForm?.top ?? 0}
         left={driveForm?.left ?? 0}
+        kind={driveForm?.kind ?? "google-drive"}
         initialValues={
           driveForm
             ? {
@@ -454,9 +816,46 @@ export const DocumentBlockEditor = forwardRef<
               }
             : undefined
         }
-        title={driveForm?.editInlineId ? "แก้ไข Google Drive" : "Google Drive"}
+        title={
+          driveForm?.kind === "link"
+            ? driveForm.editInlineId
+              ? "แก้ไขลิงก์"
+              : "Link"
+            : driveForm?.editInlineId
+              ? "แก้ไข Google Drive"
+              : "Google Drive"
+        }
+        urlPlaceholder={
+          driveForm?.kind === "link" ? "https://" : "ลิงก์ Google Drive"
+        }
         onClose={() => setDriveForm(null)}
         onSubmit={handleDriveFormSubmit}
+      />
+
+      <DocumentChipMenu
+        open={chipMenu !== null}
+        top={chipMenu?.top ?? 0}
+        left={chipMenu?.left ?? 0}
+        secondaryLabel="Open link"
+        SecondaryIcon={ExternalLink}
+        onClose={() => setChipMenu(null)}
+        onEdit={() => {
+          if (!chipMenu) return;
+          setDriveForm({
+            blockId: chipMenu.blockId,
+            insertOffset: 0,
+            top: chipMenu.top,
+            left: chipMenu.left,
+            kind: "link",
+            editInlineId: chipMenu.inlineId,
+            initialName: chipMenu.name,
+            initialUrl: chipMenu.url,
+          });
+        }}
+        onSecondary={() => {
+          if (!chipMenu) return;
+          openExternalUrl(chipMenu.url);
+        }}
       />
 
       <GoogleDrivePreviewModal
@@ -473,6 +872,7 @@ export const DocumentBlockEditor = forwardRef<
                   insertOffset: 0,
                   top: window.innerHeight / 2,
                   left: window.innerWidth / 2,
+                  kind: "google-drive",
                   editInlineId: previewModal.inlineId,
                   initialName: previewModal.name,
                   initialUrl: previewModal.url,

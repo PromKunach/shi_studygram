@@ -15,6 +15,7 @@ export type DocumentNodeRecord = {
   kind: DocumentNodeKind;
   title: string;
   content: string;
+  drive_url: string;
   icon: string;
   color: string;
   position: number;
@@ -37,7 +38,14 @@ function toDocumentItem(row: DocumentNodeRecord): DocumentItem {
     icon: row.icon as DocumentIconId,
     color: row.color as DocumentColorId,
     updatedAt: formatUpdatedAt(row.updated_at),
+    driveUrl: row.kind === "page" ? row.drive_url?.trim() || undefined : undefined,
   };
+}
+
+export function hasDocumentDriveLink(
+  document: Pick<DocumentItem, "type" | "driveUrl">
+) {
+  return document.type === "document" && Boolean(document.driveUrl?.trim());
 }
 
 export function buildDocumentSections(
@@ -195,6 +203,8 @@ export async function updateDocumentNode(
       title: payload.title.trim(),
       icon: payload.icon,
       color: payload.color,
+      drive_url:
+        payload.type === "folder" ? "" : (payload.driveUrl ?? "").trim(),
     })
     .eq("id", nodeId)
     .eq("author_pbri_id", authorPbriId)
@@ -266,6 +276,8 @@ export async function createDocumentNode(
       title: payload.title.trim(),
       icon: payload.icon,
       color: payload.color,
+      drive_url:
+        payload.type === "folder" ? "" : (payload.driveUrl ?? "").trim(),
       position,
     })
     .select("*")

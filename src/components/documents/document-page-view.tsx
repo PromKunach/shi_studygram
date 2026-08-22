@@ -1,12 +1,14 @@
 "use client";
 
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { ArrowLeft } from "lucide-react";
+import { ArrowLeft, Redo2, Undo2 } from "lucide-react";
 import {
   DocumentBlockEditor,
   type DocumentBlockEditorHandle,
 } from "@/components/documents/document-block-editor";
+import { GoogleDrivePreviewModal } from "@/components/documents/document-google-drive-inline";
 import { getDocumentColorStyles } from "@/lib/document-colors";
 import type { DocumentColorId } from "@/lib/document-colors";
 import { getDocumentIcon, type DocumentIconId } from "@/lib/document-icons";
@@ -16,6 +18,7 @@ import {
   type DocumentNodeRecord,
 } from "@/lib/documents";
 import { PAGE_MAIN } from "@/lib/layout";
+import { recordRecentPage } from "@/lib/recent-pages";
 import { getAuthorPbriId, useCurrentUser } from "@/lib/userProfile";
 import { cn } from "@/lib/utils";
 
@@ -43,6 +46,7 @@ function autoResize(element: HTMLTextAreaElement | null) {
 }
 
 export function DocumentPageView({ documentId }: DocumentPageViewProps) {
+  const router = useRouter();
   const { user, ready } = useCurrentUser();
   const authorPbriId = getAuthorPbriId(user);
 
@@ -55,8 +59,12 @@ export function DocumentPageView({ documentId }: DocumentPageViewProps) {
 
   const titleRef = useRef<HTMLTextAreaElement>(null);
   const editorRef = useRef<DocumentBlockEditorHandle>(null);
+  const toolbarSentinelRef = useRef<HTMLDivElement>(null);
   const hydratedRef = useRef(false);
   const lastSavedRef = useRef({ title: "", content: "" });
+  const [canUndo, setCanUndo] = useState(false);
+  const [canRedo, setCanRedo] = useState(false);
+  const [isToolbarStuck, setIsToolbarStuck] = useState(false);
 
   const debouncedTitle = useDebouncedValue(title, 500);
   const debouncedContent = useDebouncedValue(content, 500);
@@ -105,11 +113,23 @@ export function DocumentPageView({ documentId }: DocumentPageViewProps) {
   }, [ready, loadDocument]);
 
   useEffect(() => {
+    if (!node || node.kind !== "page") return;
+
+    recordRecentPage({
+      id: node.id,
+      title: node.title.trim() || "ไม่มีชื่อ",
+      href: `/documents/${node.id}`,
+      iconId: node.icon,
+    });
+  }, [node]);
+
+  useEffect(() => {
     autoResize(titleRef.current);
   }, [title, isLoading]);
 
   useEffect(() => {
     if (!hydratedRef.current || !node || node.kind !== "page") return;
+    if (node.drive_url?.trim()) return;
     if (!isDebounceSynced) return;
 
     const nextTitle = debouncedTitle.trim() || "ไม่มีชื่อ";
@@ -166,10 +186,31 @@ export function DocumentPageView({ documentId }: DocumentPageViewProps) {
   ]);
 
   useEffect(() => {
+    setCanUndo(false);
+    setCanRedo(false);
+    setIsToolbarStuck(false);
+  }, [documentId]);
+
+  useEffect(() => {
     if (saveState !== "saved") return;
     const timer = window.setTimeout(() => setSaveState("idle"), 2000);
     return () => window.clearTimeout(timer);
   }, [saveState]);
+
+  useEffect(() => {
+    const sentinel = toolbarSentinelRef.current;
+    if (!sentinel) return;
+
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        setIsToolbarStuck(!entry?.isIntersecting);
+      },
+      { threshold: 0 }
+    );
+
+    observer.observe(sentinel);
+    return () => observer.disconnect();
+  }, []);
 
   const Icon = getDocumentIcon((node?.icon ?? "file-text") as DocumentIconId);
   const colorStyles = getDocumentColorStyles(
@@ -177,11 +218,25 @@ export function DocumentPageView({ documentId }: DocumentPageViewProps) {
   );
 
   const isWorkspaceLoading = !ready || isLoading;
+  const driveUrl =
+    node?.kind === "page" ? node.drive_url?.trim() ?? "" : "";
+  const isDriveLinkedPage = driveUrl.length > 0;
 
   return (
     <main className={cn(PAGE_MAIN, "pb-24")}>
       <article className="mx-auto w-full max-w-3xl">
-        <div className="mb-8 flex items-center justify-between gap-4">
+        <div
+          ref={toolbarSentinelRef}
+          className="pointer-events-none h-px"
+          aria-hidden
+        />
+        <div
+          className={cn(
+            "sticky top-0 z-20 -mx-4 mb-8 flex items-center justify-between gap-4 bg-background px-4 py-3",
+            "sm:-mx-6 sm:px-6 md:-mx-10 md:px-10 lg:-mx-16 lg:px-16",
+            isToolbarStuck && "border-b border-border shadow-sm"
+          )}
+        >
           <Link
             href="/documents"
             className="inline-flex items-center gap-2 text-sm text-muted transition-colors hover:text-foreground"
@@ -190,18 +245,43 @@ export function DocumentPageView({ documentId }: DocumentPageViewProps) {
             เอกสาร
           </Link>
 
-          {!isWorkspaceLoading && saveState !== "idle" && (
-            <p
-              className={cn(
-                "text-xs",
-                saveState === "error" ? "text-destructive" : "text-muted"
-              )}
-            >
-              {saveState === "saving" && "กำลังบันทึก…"}
-              {saveState === "saved" && "บันทึกแล้ว"}
-              {saveState === "error" && "บันทึกไม่สำเร็จ"}
-            </p>
-          )}
+          <div className="flex items-center gap-1 sm:gap-2">
+            {!isWorkspaceLoading && !isDriveLinkedPage && saveState !== "idle" && (
+              <p
+                className={cn(
+                  "mr-1 text-xs",
+                  saveState === "error" ? "text-destructive" : "text-muted"
+                )}
+              >
+                {saveState === "saving" && "กำลังบันทึก…"}
+                {saveState === "saved" && "บันทึกแล้ว"}
+                {saveState === "error" && "บันทึกไม่สำเร็จ"}
+              </p>
+            )}
+
+            {!isDriveLinkedPage && (
+              <>
+                <button
+                  type="button"
+                  onClick={() => editorRef.current?.undo()}
+                  disabled={!canUndo || isWorkspaceLoading}
+                  aria-label="เลิกทำ"
+                  className="inline-flex h-9 w-9 touch-manipulation items-center justify-center rounded-md text-foreground transition-colors hover:bg-hover disabled:pointer-events-none disabled:opacity-30"
+                >
+                  <Undo2 className="h-5 w-5" />
+                </button>
+                <button
+                  type="button"
+                  onClick={() => editorRef.current?.redo()}
+                  disabled={!canRedo || isWorkspaceLoading}
+                  aria-label="ทำซ้ำ"
+                  className="inline-flex h-9 w-9 touch-manipulation items-center justify-center rounded-md text-foreground transition-colors hover:bg-hover disabled:pointer-events-none disabled:opacity-30"
+                >
+                  <Redo2 className="h-5 w-5" />
+                </button>
+              </>
+            )}
+          </div>
         </div>
 
         {isWorkspaceLoading ? (
@@ -216,6 +296,13 @@ export function DocumentPageView({ documentId }: DocumentPageViewProps) {
               กลับไปหน้าเอกสาร
             </Link>
           </div>
+        ) : node && isDriveLinkedPage ? (
+          <GoogleDrivePreviewModal
+            open
+            name={title || node.title}
+            url={driveUrl}
+            onClose={() => router.push("/documents")}
+          />
         ) : node ? (
           <>
             <header className="mb-6">
@@ -258,6 +345,10 @@ export function DocumentPageView({ documentId }: DocumentPageViewProps) {
               ref={editorRef}
               content={content}
               onChange={setContent}
+              onHistoryChange={(state) => {
+                setCanUndo(state.canUndo);
+                setCanRedo(state.canRedo);
+              }}
               className="min-h-[50vh]"
             />
           </>

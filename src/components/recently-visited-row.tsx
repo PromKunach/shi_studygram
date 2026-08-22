@@ -3,10 +3,12 @@
 import { useRef } from "react";
 import { ChevronRight, Clock } from "lucide-react";
 import { RecentPageCard } from "@/components/recent-page-card";
-import { getRecentlyVisitedPages } from "@/lib/navigation";
+import { useRecentPages } from "@/hooks/use-recent-pages";
+import { resolveRecentPageDisplay } from "@/lib/navigation";
 
 export function RecentlyVisitedRow() {
-  const pages = getRecentlyVisitedPages();
+  const recentPages = useRecentPages();
+  const pages = recentPages.map(resolveRecentPageDisplay);
   const scrollRef = useRef<HTMLDivElement>(null);
 
   const scrollNext = () => {

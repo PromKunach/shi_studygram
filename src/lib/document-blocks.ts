@@ -1,8 +1,10 @@
-export type DocumentBlockType = "paragraph" | "h1" | "h2" | "h3";
+export type DocumentBlockType = "paragraph" | "h1" | "h2" | "h3" | "bullet";
+
+export type DocumentInlineType = "google-drive" | "link";
 
 export type DocumentInline = {
   id: string;
-  type: "google-drive";
+  type: DocumentInlineType;
   url: string;
   name: string;
 };
@@ -19,7 +21,7 @@ export type DocumentBlocksPayload = {
   blocks: DocumentBlock[];
 };
 
-export type SlashCommandId = DocumentBlockType | "google-drive";
+export type SlashCommandId = DocumentBlockType | "google-drive" | "link";
 
 const INLINE_MARKER_PATTERN = /\u200D\{\{inline:([0-9a-f-]+)\}\}\u200D/g;
 
@@ -63,6 +65,25 @@ export function createGoogleDriveInline(
   };
 }
 
+export function createLinkInline(url: string, name: string): DocumentInline {
+  return {
+    id: crypto.randomUUID(),
+    type: "link",
+    url,
+    name,
+  };
+}
+
+export function createDocumentInline(
+  type: DocumentInlineType,
+  url: string,
+  name: string
+): DocumentInline {
+  return type === "link"
+    ? createLinkInline(url, name)
+    : createGoogleDriveInline(url, name);
+}
+
 export type TextSegment =
   | { kind: "text"; value: string }
   | { kind: "inline"; id: string };
@@ -94,16 +115,16 @@ export function stripInlineMarkers(text: string) {
   return text.replace(INLINE_MARKER_PATTERN, "");
 }
 
-function normalizeInline(raw: unknown): DocumentInline | null {
+export function normalizeDocumentInline(raw: unknown): DocumentInline | null {
   if (!raw || typeof raw !== "object") return null;
   const record = raw as Partial<DocumentInline>;
-  if (record.type !== "google-drive") return null;
+  if (record.type !== "google-drive" && record.type !== "link") return null;
   if (typeof record.id !== "string") return null;
   if (typeof record.url !== "string") return null;
   if (typeof record.name !== "string") return null;
   return {
     id: record.id,
-    type: "google-drive",
+    type: record.type,
     url: record.url,
     name: record.name,
   };
@@ -145,13 +166,19 @@ function normalizeBlock(raw: unknown): DocumentBlock | null {
   }
 
   const type = record.type;
-  if (type !== "paragraph" && type !== "h1" && type !== "h2" && type !== "h3") {
+  if (
+    type !== "paragraph" &&
+    type !== "h1" &&
+    type !== "h2" &&
+    type !== "h3" &&
+    type !== "bullet"
+  ) {
     return null;
   }
 
   const inlines = Array.isArray(record.inlines)
     ? record.inlines
-        .map(normalizeInline)
+        .map(normalizeDocumentInline)
         .filter((inline): inline is DocumentInline => inline !== null)
     : undefined;
 
@@ -214,6 +241,89 @@ export function removeInlineFromBlock(block: DocumentBlock, inlineId: string) {
   };
 }
 
+export function splitBlockAtOffset(block: DocumentBlock, offset: number) {
+  const safeOffset = Math.max(0, Math.min(offset, block.text.length));
+  const inlines = block.inlines ?? [];
+  const inlineMap = new Map(inlines.map((inline) => [inline.id, inline]));
+
+  const beforeParts: string[] = [];
+  const afterParts: string[] = [];
+  const beforeInlines: DocumentInline[] = [];
+  const afterInlines: DocumentInline[] = [];
+
+  let pos = 0;
+  for (const segment of splitTextWithInlineMarkers(block.text)) {
+    if (segment.kind === "text") {
+      const value = segment.value;
+      const start = pos;
+      const end = pos + value.length;
+
+      if (end <= safeOffset) {
+        beforeParts.push(value);
+      } else if (start >= safeOffset) {
+        afterParts.push(value);
+      } else {
+        const splitAt = safeOffset - start;
+        beforeParts.push(value.slice(0, splitAt));
+        afterParts.push(value.slice(splitAt));
+      }
+
+      pos = end;
+      continue;
+    }
+
+    const inline = inlineMap.get(segment.id);
+    const marker = inline
+      ? wrapInlineMarker(inline.id)
+      : inlineMarker(segment.id);
+    const markerLen = marker.length;
+    const start = pos;
+    const end = pos + markerLen;
+
+    if (end <= safeOffset) {
+      beforeParts.push(marker);
+      if (inline) beforeInlines.push(inline);
+    } else if (start >= safeOffset) {
+      afterParts.push(marker);
+      if (inline) afterInlines.push(inline);
+    } else {
+      beforeParts.push(marker);
+      if (inline) beforeInlines.push(inline);
+    }
+
+    pos = end;
+  }
+
+  return {
+    before: {
+      text: normalizeStoredInlineText(beforeParts.join(""), beforeInlines),
+      inlines: beforeInlines,
+    },
+    after: {
+      text: normalizeStoredInlineText(afterParts.join(""), afterInlines),
+      inlines: afterInlines,
+    },
+  };
+}
+
+function normalizeStoredInlineText(text: string, inlines: DocumentInline[]) {
+  const inlineMap = new Map(inlines.map((inline) => [inline.id, inline]));
+  let normalized = "";
+
+  for (const segment of splitTextWithInlineMarkers(text)) {
+    if (segment.kind === "text") {
+      const trimmed = segment.value.replace(/^\u2009+|\u2009+$/g, "");
+      if (trimmed) normalized += trimmed;
+      continue;
+    }
+
+    const inline = inlineMap.get(segment.id);
+    if (inline) normalized += wrapInlineMarker(inline.id);
+  }
+
+  return normalized;
+}
+
 export function updateInlineInBlock(
   block: DocumentBlock,
   inlineId: string,
@@ -265,6 +375,18 @@ export const SLASH_COMMANDS: SlashCommand[] = [
       "embed",
     ],
   },
+  {
+    id: "link",
+    label: "Link",
+    description: "แนบลิงก์",
+    keywords: ["link", "url", "href", "ลิงก์", "website"],
+  },
+  {
+    id: "bullet",
+    label: "Bullets",
+    description: "รายการจุด",
+    keywords: ["bullet", "bullets", "list", "ul", "รายการ", "จุด"],
+  },
 ];
 
 export function filterSlashCommands(query: string): SlashCommand[] {
@@ -302,6 +424,8 @@ export function blockTypeClassName(type: DocumentBlockType) {
       return "text-2xl font-semibold leading-snug";
     case "h3":
       return "text-xl font-semibold leading-snug";
+    case "bullet":
+      return "text-base leading-relaxed";
     default:
       return "text-base leading-relaxed";
   }
@@ -326,4 +450,14 @@ export function toGoogleDrivePreviewUrl(url: string) {
 
 export function isHeadingBlock(type: DocumentBlockType) {
   return type === "h1" || type === "h2" || type === "h3";
+}
+
+export function isBulletBlock(type: DocumentBlockType) {
+  return type === "bullet";
+}
+
+export function isInlineSlashCommand(
+  id: SlashCommandId
+): id is "google-drive" | "link" {
+  return id === "google-drive" || id === "link";
 }

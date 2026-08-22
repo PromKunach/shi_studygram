@@ -27,6 +27,7 @@ export type CreateDocumentPayload = {
   type: DocumentContentType;
   icon: DocumentIconId;
   color: DocumentColorId;
+  driveUrl?: string;
 };
 
 type DocumentDialogProps = {
@@ -73,6 +74,7 @@ function DocumentDialog({
   const [type, setType] = useState<DocumentContentType>("document");
   const [icon, setIcon] = useState<DocumentIconId>("file-text");
   const [color, setColor] = useState<DocumentColorId>(DEFAULT_DOCUMENT_COLOR);
+  const [driveUrl, setDriveUrl] = useState("");
   const [iconMenuOpen, setIconMenuOpen] = useState(false);
   const [bottomFade, setBottomFade] = useState(0);
   const [confirmDelete, setConfirmDelete] = useState(false);
@@ -106,13 +108,21 @@ function DocumentDialog({
       setType(editingDocument.type);
       setIcon(editingDocument.icon);
       setColor(editingDocument.color);
+      setDriveUrl(editingDocument.driveUrl ?? "");
     } else {
       setTitle("");
       setType("document");
       setIcon("file-text");
       setColor(DEFAULT_DOCUMENT_COLOR);
+      setDriveUrl("");
     }
     setIconMenuOpen(false);
+
+    const frame = window.requestAnimationFrame(() => {
+      const el = scrollRef.current;
+      if (el) el.scrollTop = 0;
+    });
+    return () => window.cancelAnimationFrame(frame);
   }, [open, editingDocument]);
 
   useEffect(() => {
@@ -176,6 +186,7 @@ function DocumentDialog({
 
   const handleTypeChange = (nextType: DocumentContentType) => {
     setType(nextType);
+    if (nextType === "folder") setDriveUrl("");
     setIcon((current) => {
       const folderDefault = defaultIconForType("folder");
       const documentDefault = defaultIconForType("document");
@@ -262,7 +273,13 @@ function DocumentDialog({
                   onSubmit={(event) => {
                     event.preventDefault();
                     if (!canSubmit || isBusy) return;
-                    onSubmit({ title: trimmed, type, icon, color });
+                    onSubmit({
+                      title: trimmed,
+                      type,
+                      icon,
+                      color,
+                      driveUrl: type === "document" ? driveUrl.trim() : "",
+                    });
                     if (!isEdit) onClose();
                   }}
                   className="space-y-5"
@@ -472,9 +489,22 @@ function DocumentDialog({
                         : "เช่น บันทึกการบ้าน"
                     }
                     className="mt-2 h-10 bg-sidebar shadow-none"
-                    autoFocus
                   />
                 </div>
+
+                {type === "document" && (
+                  <div className="space-y-2">
+                    <Label htmlFor="document-drive-url">ลิงก์ Google Drive</Label>
+                    <Input
+                      id="document-drive-url"
+                      type="url"
+                      value={driveUrl}
+                      onChange={(event) => setDriveUrl(event.target.value)}
+                      placeholder="https://drive.google.com/..."
+                      className="mt-2 h-10 bg-sidebar shadow-none"
+                    />
+                  </div>
+                )}
 
                 <div className="flex justify-end gap-2 pt-2">
                   <Button
