@@ -89,27 +89,27 @@ create trigger document_nodes_set_updated_at
 -- ---------------------------------------------------------------------------
 alter table public.document_nodes enable row level security;
 
--- Authenticated: own rows by pbri_id from email prefix
-create policy "document_nodes_select_own"
+-- Authenticated: shared workspace — read/edit all documents; insert still own rows
+create policy "document_nodes_select_public"
   on public.document_nodes for select
   to authenticated
-  using (author_pbri_id = split_part(auth.jwt() ->> 'email', '@', 1));
+  using (true);
 
 create policy "document_nodes_insert_own"
   on public.document_nodes for insert
   to authenticated
   with check (author_pbri_id = split_part(auth.jwt() ->> 'email', '@', 1));
 
-create policy "document_nodes_update_own"
+create policy "document_nodes_update_public"
   on public.document_nodes for update
   to authenticated
-  using (author_pbri_id = split_part(auth.jwt() ->> 'email', '@', 1))
-  with check (author_pbri_id = split_part(auth.jwt() ->> 'email', '@', 1));
+  using (true)
+  with check (true);
 
-create policy "document_nodes_delete_own"
+create policy "document_nodes_delete_public"
   on public.document_nodes for delete
   to authenticated
-  using (author_pbri_id = split_part(auth.jwt() ->> 'email', '@', 1));
+  using (true);
 
 -- DEV ONLY: guest/demo access without login — remove before production
 create policy "document_nodes_select_anon"

@@ -1,3 +1,7 @@
+import {
+  collapseAppointmentSeries,
+  getUpcomingDateRange,
+} from "@/lib/appointments-upcoming"
 import { supabase } from "@/lib/supabaseClient"
 
 export type AppointmentTone = "red" | "blue" | "neutral"
@@ -186,6 +190,31 @@ export const appendBoardSourceToDescription = appendBoardSourceToText
 export function appointmentDescriptionDisplay(description: string) {
   const trimmed = description.trim()
   return trimmed || null
+}
+
+export function appointmentTitleDisplay(title: string) {
+  return parseBoardSourceFromText(title).body.trim() || "ไม่มีชื่อ"
+}
+
+export {
+  collapseAppointmentSeries,
+  formatUpcomingRelativeDay,
+  getUpcomingDateRange,
+} from "@/lib/appointments-upcoming";
+
+export async function fetchUpcomingAppointments(days = 7) {
+  const { start, endExclusive } = getUpcomingDateRange(days)
+
+  const { data, error } = await supabase
+    .from("appointments")
+    .select("*")
+    .gte("scheduled_date", start)
+    .lt("scheduled_date", endExclusive)
+    .order("scheduled_date", { ascending: true })
+    .order("created_at", { ascending: true })
+
+  if (error) throw error
+  return collapseAppointmentSeries((data ?? []) as AppointmentRecord[])
 }
 
 function boardSourceLabelFromRecord(record: Pick<AppointmentRecord, "title" | "description">) {

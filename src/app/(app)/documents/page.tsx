@@ -101,7 +101,7 @@ export default function DocumentsPage() {
     if (!options?.silent) setIsLoading(true);
 
     try {
-      const workspace = await fetchDocumentWorkspace(authorPbriId);
+      const workspace = await fetchDocumentWorkspace();
       setSections(workspace.sections);
       setNodes(workspace.nodes);
       setFolderStackBySection((current) => {
@@ -121,7 +121,7 @@ export default function DocumentsPage() {
     } finally {
       setIsLoading(false);
     }
-  }, [authorPbriId]);
+  }, []);
 
   useEffect(() => {
     if (!ready) return;
@@ -214,7 +214,7 @@ export default function DocumentsPage() {
     setLoadError(null);
 
     try {
-      await updateDocumentNode(authorPbriId, editingDocument.id, payload);
+      await updateDocumentNode(editingDocument.id, payload);
       await loadWorkspace({ silent: true });
       setEditingDocument(null);
     } catch (error) {
@@ -233,7 +233,7 @@ export default function DocumentsPage() {
     setLoadError(null);
 
     try {
-      await deleteDocumentNode(authorPbriId, documentToDelete.id);
+      await deleteDocumentNode(documentToDelete.id);
 
       setFolderStackBySection((current) => {
         const next: Record<string, string[]> = {};
@@ -323,7 +323,7 @@ export default function DocumentsPage() {
             <p className="text-sm text-muted">ไม่พบส่วนที่ตรงกับการค้นหา</p>
           </div>
         ) : (
-          <div className="space-y-7">
+          <div className="space-y-6">
             {filteredSections.map((section) => {
               const stack = folderStackBySection[section.id] ?? [];
               const breadcrumb = buildSectionBreadcrumb(section, nodes, stack);

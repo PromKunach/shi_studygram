@@ -4,7 +4,6 @@ import { useEffect, useState } from "react";
 import { AnimatePresence, motion } from "motion/react";
 import { AppSidebar } from "@/components/app-sidebar";
 import { AppTopbar } from "@/components/app-topbar";
-import { RecentPageTracker } from "@/components/recent-page-tracker";
 import { DESKTOP_MEDIA_QUERY, useMediaQuery } from "@/lib/use-media-query";
 import { cn } from "@/lib/utils";
 
@@ -45,7 +44,6 @@ export function AppShell({ children }: AppShellProps) {
 
   return (
     <div className="flex min-h-screen min-w-0">
-      <RecentPageTracker />
       <AnimatePresence>
         {open && !isDesktop && (
           <motion.button

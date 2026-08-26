@@ -9,6 +9,7 @@ import {
   Folder,
   LogOut,
   Menu,
+  Newspaper,
   Settings,
   User,
   UserCircle,
@@ -159,6 +160,7 @@ export function AppTopbar({
               alt={user.displayName}
               width={28}
               height={28}
+              unoptimized
               className="h-7 w-7 rounded-full object-cover"
             />
           ) : (
@@ -180,6 +182,7 @@ export function AppTopbar({
                       alt={user.displayName}
                       width={40}
                       height={40}
+                      unoptimized
                       className="h-10 w-10 shrink-0 rounded-full object-cover"
                     />
                   ) : (
@@ -198,6 +201,13 @@ export function AppTopbar({
                 </div>
 
                 <div className="p-1.5">
+                  <MenuItem
+                    href="/news"
+                    icon={Newspaper}
+                    onClick={() => setMenuOpen(false)}
+                  >
+                    ข่าวสาร
+                  </MenuItem>
                   <MenuItem
                     href="/documents"
                     icon={Folder}

@@ -358,7 +358,7 @@ function DocumentDialog({
                             style={
                               option.from && option.to
                                 ? {
-                                    background: `linear-gradient(145deg, ${option.from}, ${option.to})`,
+                                    background: option.from,
                                   }
                                 : undefined
                             }

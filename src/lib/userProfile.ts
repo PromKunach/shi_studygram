@@ -18,51 +18,103 @@ export function getAuthorPbriId(user: CurrentUser | null | undefined) {
   return user?.studentId ?? GUEST_AUTHOR_PBRI_ID
 }
 
-const PFP_COUNT = 32
+export const PROFILE_IMAGES_BUCKET = "images"
+const PROFILE_IMAGE_PREFIX = "profile_images"
 
-export function getPfpUrl(index: number) {
-  const filename = `pfp_${(index % PFP_COUNT) + 1}.JPG`
-  const { data } = supabase.storage.from("images").getPublicUrl(`images/pfp/${filename}`)
+export function getPfpUrlForProfileId(profileId: number) {
+  const normalizedId = Number(profileId)
+  if (!Number.isFinite(normalizedId) || normalizedId < 1) return undefined
+
+  const path = `${PROFILE_IMAGE_PREFIX}/pfp_${normalizedId}.JPG`
+  const { data } = supabase.storage
+    .from(PROFILE_IMAGES_BUCKET)
+    .getPublicUrl(path)
   return data.publicUrl
 }
 
-export async function resolveUserProfile(email: string): Promise<CurrentUser | null> {
-  const studentId = email.split("@")[0]?.trim() ?? ""
-  if (!studentId) return null
+export function pbriIdFromEmail(email: string) {
+  return email.split("@")[0]?.trim() ?? ""
+}
 
-  let { data: profile } = await supabase
-    .from("profiles")
-    .select("id, full_name_th, nickname_th, pbri_id")
-    .eq("pbri_id", studentId)
-    .maybeSingle()
+type ProfileRow = {
+  id: number
+  full_name_th: string | null
+  nickname_th: string | null
+  pbri_id: string | number
+}
 
-  if (!profile && /^\d+$/.test(studentId)) {
-    const { data } = await supabase
+async function fetchProfileByPbriId(studentId: string) {
+  const normalizedId = studentId.trim()
+  if (!normalizedId) return null
+
+  const select = "id, full_name_th, nickname_th, pbri_id"
+
+  if (/^\d+$/.test(normalizedId)) {
+    const numericId = Number(normalizedId)
+    const { data, error } = await supabase
       .from("profiles")
-      .select("id, full_name_th, nickname_th, pbri_id")
-      .eq("pbri_id", Number(studentId))
+      .select(select)
+      .eq("pbri_id", numericId)
       .maybeSingle()
-    profile = data
+
+    if (error) throw error
+    if (data) return data as ProfileRow
   }
 
+  const { data, error } = await supabase
+    .from("profiles")
+    .select(select)
+    .eq("pbri_id", normalizedId)
+    .maybeSingle()
+
+  if (error) throw error
+  return (data ?? null) as ProfileRow | null
+}
+
+function avatarUrlForProfile(profile: ProfileRow | null) {
+  if (profile?.id == null) return undefined
+  return getPfpUrlForProfileId(profile.id)
+}
+
+export async function resolveAuthorForPbriId(studentId: string): Promise<CurrentUser | null> {
+  const normalizedId = studentId.trim()
+  if (!normalizedId) return null
+
+  const profile = await fetchProfileByPbriId(normalizedId)
+  const resolvedStudentId =
+    profile?.pbri_id != null ? String(profile.pbri_id) : normalizedId
   const displayName =
     profile?.nickname_th?.trim() ||
     profile?.full_name_th?.trim() ||
-    studentId
+    resolvedStudentId
+  const avatarUrl = avatarUrlForProfile(profile)
 
-  let avatarUrl: string | undefined
-  if (profile?.id != null) {
-    const { data: orderedProfiles } = await supabase
-      .from("profiles")
-      .select("id")
-      .order("id", { ascending: true })
-
-    const index =
-      orderedProfiles?.findIndex((row) => String(row.id) === String(profile!.id)) ?? -1
-    avatarUrl = getPfpUrl(index >= 0 ? index : Number(profile.id) - 1)
+  return {
+    studentId: resolvedStudentId,
+    displayName,
+    email: "",
+    avatarUrl,
   }
+}
 
-  const user: CurrentUser = { studentId, displayName, email, avatarUrl }
+export async function resolveUserProfile(email: string): Promise<CurrentUser | null> {
+  const studentId = pbriIdFromEmail(email)
+  if (!studentId) return null
+
+  const profile = await fetchProfileByPbriId(studentId)
+  const resolvedStudentId = profile?.pbri_id != null ? String(profile.pbri_id) : studentId
+  const displayName =
+    profile?.nickname_th?.trim() ||
+    profile?.full_name_th?.trim() ||
+    resolvedStudentId
+  const avatarUrl = avatarUrlForProfile(profile)
+
+  const user: CurrentUser = {
+    studentId: resolvedStudentId,
+    displayName,
+    email,
+    avatarUrl,
+  }
 
   if (typeof window !== "undefined") {
     localStorage.setItem("pistar_user", JSON.stringify(user))
@@ -99,8 +151,22 @@ export function useCurrentUser() {
         /* ignore bad cache */
       }
 
-      const profile = await resolveUserProfile(email)
-      if (!cancelled) setUser(profile)
+      try {
+        const profile = await resolveUserProfile(email)
+        if (!cancelled) setUser(profile)
+      } catch (error) {
+        console.error("Failed to resolve user profile", error)
+        if (!cancelled) {
+          const studentId = pbriIdFromEmail(email)
+          if (studentId) {
+            setUser({
+              studentId,
+              displayName: studentId,
+              email,
+            })
+          }
+        }
+      }
     }
 
     const init = async () => {

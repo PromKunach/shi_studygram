@@ -1,13 +1,13 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { ChevronRight, Folder } from "lucide-react";
+import { ChevronLeft, ChevronRight, Folder } from "lucide-react";
 import {
   DocumentCard,
   type DocumentItem,
 } from "@/components/documents/document-card";
 import { NewDocumentCard } from "@/components/documents/new-document-card";
-import { DOCUMENT_ROW_GAP, DOCUMENT_SCROLL_STEP } from "@/components/documents/document-card-metrics";
+import { DOCUMENT_ROW_GAP } from "@/components/documents/document-card-metrics";
 import {
   hasDocumentDriveLink,
   type DocumentBreadcrumbSegment,
@@ -35,18 +35,21 @@ type DocumentSectionRowProps = {
   isSaving?: boolean;
 };
 
-const FADE_RAMP_PX = 72;
+type ScrollState = {
+  canScrollLeft: boolean;
+  canScrollRight: boolean;
+};
 
-function getFadeOpacity(scrollLeft: number, scrollWidth: number, clientWidth: number) {
-  const maxScroll = scrollWidth - clientWidth;
+function getScrollState(element: HTMLDivElement): ScrollState {
+  const maxScroll = element.scrollWidth - element.clientWidth;
   if (maxScroll <= 1) {
-    return { start: 0, end: 0 };
+    return { canScrollLeft: false, canScrollRight: false };
   }
 
-  const start = Math.min(1, scrollLeft / FADE_RAMP_PX);
-  const end = Math.min(1, (maxScroll - scrollLeft) / FADE_RAMP_PX);
-
-  return { start, end };
+  return {
+    canScrollLeft: element.scrollLeft > 1,
+    canScrollRight: element.scrollLeft < maxScroll - 1,
+  };
 }
 
 export function DocumentSectionRow({
@@ -63,45 +66,52 @@ export function DocumentSectionRow({
   isSaving = false,
 }: DocumentSectionRowProps) {
   const scrollRef = useRef<HTMLDivElement>(null);
-  const [fadeOpacity, setFadeOpacity] = useState({ start: 0, end: 0 });
+  const [scrollState, setScrollState] = useState<ScrollState>({
+    canScrollLeft: false,
+    canScrollRight: false,
+  });
   const sortedDocuments = useMemo(
     () => sortDocumentsWithFoldersFirst(documents),
     [documents]
   );
-  const cardCount = sortedDocuments.length + 1;
 
-  const updateFade = useCallback(() => {
+  const updateScrollState = useCallback(() => {
     const el = scrollRef.current;
     if (!el) {
-      setFadeOpacity({ start: 0, end: 0 });
+      setScrollState({ canScrollLeft: false, canScrollRight: false });
       return;
     }
 
-    setFadeOpacity(
-      getFadeOpacity(el.scrollLeft, el.scrollWidth, el.clientWidth)
-    );
+    setScrollState(getScrollState(el));
   }, []);
 
   useEffect(() => {
-    updateFade();
+    updateScrollState();
     const el = scrollRef.current;
     if (!el) return;
 
-    el.addEventListener("scroll", updateFade, { passive: true });
-    window.addEventListener("resize", updateFade);
+    el.addEventListener("scroll", updateScrollState, { passive: true });
+    window.addEventListener("resize", updateScrollState);
 
-    const observer = new ResizeObserver(updateFade);
+    const observer = new ResizeObserver(updateScrollState);
     observer.observe(el);
 
     return () => {
-      el.removeEventListener("scroll", updateFade);
-      window.removeEventListener("resize", updateFade);
+      el.removeEventListener("scroll", updateScrollState);
+      window.removeEventListener("resize", updateScrollState);
       observer.disconnect();
     };
-  }, [sortedDocuments.length, updateFade]);
+  }, [sortedDocuments.length, updateScrollState]);
 
-  const scrollNext = () => {
-    scrollRef.current?.scrollBy({ left: DOCUMENT_SCROLL_STEP, behavior: "smooth" });
+  const scrollBy = (direction: "left" | "right") => {
+    const el = scrollRef.current;
+    if (!el) return;
+
+    const distance = Math.max(120, Math.round(el.clientWidth * 0.75));
+    el.scrollBy({
+      left: direction === "right" ? distance : -distance,
+      behavior: "smooth",
+    });
   };
 
   const handleOpen = (document: DocumentItem) => {
@@ -115,9 +125,12 @@ export function DocumentSectionRow({
     }
   };
 
+  const scrollButtonClass =
+    "flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-border bg-background text-muted transition-colors hover:bg-hover hover:text-foreground";
+
   return (
     <section>
-      <div className="mb-2.5 flex min-w-0 items-center gap-2 text-sm text-muted sm:text-base">
+      <div className="mb-2 flex min-w-0 items-center gap-2 text-sm text-muted">
         <Folder className="h-4 w-4 shrink-0" />
         <nav
           className="flex min-w-0 flex-1 items-center gap-1"
@@ -135,7 +148,7 @@ export function DocumentSectionRow({
                   />
                 )}
                 {isLast ? (
-                  <span className="truncate font-semibold text-foreground">
+                  <span className="truncate font-medium text-foreground">
                     {segment.title}
                   </span>
                 ) : (
@@ -153,62 +166,59 @@ export function DocumentSectionRow({
         </nav>
       </div>
 
-      <div className="relative flex items-center gap-1.5">
-        <div className="relative min-w-0 flex-1">
-          <div
-            ref={scrollRef}
-            className={cn(
-              "flex overflow-x-auto pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden",
-              DOCUMENT_ROW_GAP
-            )}
-          >
-            <NewDocumentCard onClick={() => onNewDocument(activeParentId)} />
-            {sortedDocuments.map((document, index) => (
-              <DocumentCard
-                key={document.id}
-                document={document}
-                href={
-                  document.type === "document" &&
-                  !hasDocumentDriveLink(document)
-                    ? `/documents/${document.id}`
-                    : undefined
-                }
-                onOpen={
-                  document.type === "folder" || hasDocumentDriveLink(document)
-                    ? () => handleOpen(document)
-                    : undefined
-                }
-                onEdit={() => onEditDocument(document)}
-                onDelete={() => onDeleteDocument(document)}
-                isBusy={isSaving}
-                highlighted={index === 0}
-              />
-            ))}
-          </div>
-
-          <div
-            aria-hidden
-            style={{ opacity: fadeOpacity.start }}
-            className="pointer-events-none absolute inset-y-0 left-0 z-10 w-20 bg-gradient-to-r from-background from-10% via-background/70 via-55% to-transparent"
-          />
-
-          <div
-            aria-hidden
-            style={{ opacity: fadeOpacity.end }}
-            className="pointer-events-none absolute inset-y-0 right-0 z-10 w-20 bg-gradient-to-l from-background from-10% via-background/70 via-55% to-transparent"
-          />
-        </div>
-
-        {cardCount > 2 && (
+      <div className="flex min-w-0 items-start gap-1.5">
+        {scrollState.canScrollLeft ? (
           <button
             type="button"
-            onClick={scrollNext}
-            className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-border bg-background text-muted shadow-sm transition-colors hover:bg-hover hover:text-foreground"
-            aria-label="Scroll documents"
+            onClick={() => scrollBy("left")}
+            className={cn(scrollButtonClass, "mt-[3.6rem] sm:mt-[4rem]")}
+            aria-label="เลื่อนเอกสารไปทางซ้าย"
+          >
+            <ChevronLeft className="h-4 w-4" />
+          </button>
+        ) : null}
+
+        <div
+          ref={scrollRef}
+          className={cn(
+            "min-w-0 flex-1 overflow-x-auto pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden",
+            "flex",
+            DOCUMENT_ROW_GAP
+          )}
+        >
+          <NewDocumentCard onClick={() => onNewDocument(activeParentId)} />
+          {sortedDocuments.map((document) => (
+            <DocumentCard
+              key={document.id}
+              document={document}
+              href={
+                document.type === "document" &&
+                !hasDocumentDriveLink(document)
+                  ? `/documents/${document.id}`
+                  : undefined
+              }
+              onOpen={
+                document.type === "folder" || hasDocumentDriveLink(document)
+                  ? () => handleOpen(document)
+                  : undefined
+              }
+              onEdit={() => onEditDocument(document)}
+              onDelete={() => onDeleteDocument(document)}
+              isBusy={isSaving}
+            />
+          ))}
+        </div>
+
+        {scrollState.canScrollRight ? (
+          <button
+            type="button"
+            onClick={() => scrollBy("right")}
+            className={cn(scrollButtonClass, "mt-[3.6rem] sm:mt-[4rem]")}
+            aria-label="เลื่อนเอกสารไปทางขวา"
           >
             <ChevronRight className="h-4 w-4" />
           </button>
-        )}
+        ) : null}
       </div>
     </section>
   );

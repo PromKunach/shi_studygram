@@ -44,18 +44,18 @@ export function getDocumentColorStyles(id: DocumentColorId | undefined) {
       hasColor: false,
       accent: "var(--muted)",
       swatch: "",
-      cardFill: "transparent",
+      cardBackground: "var(--sidebar)",
       tabFill: "var(--sidebar)",
     };
   }
 
-  const { from, to } = option;
+  const { from } = option;
 
   return {
     hasColor: true,
     accent: from,
-    swatch: `linear-gradient(145deg, ${from}, ${to})`,
-    cardFill: `linear-gradient(to bottom, color-mix(in srgb, ${from} 24%, transparent), transparent)`,
-    tabFill: `linear-gradient(180deg, color-mix(in srgb, ${from} 20%, var(--sidebar)), var(--sidebar))`,
+    swatch: from,
+    cardBackground: `color-mix(in srgb, ${from} 12%, var(--sidebar))`,
+    tabFill: `color-mix(in srgb, ${from} 22%, var(--sidebar))`,
   };
 }

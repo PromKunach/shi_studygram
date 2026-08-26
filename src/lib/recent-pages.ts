@@ -1,9 +1,12 @@
+import { parseDocumentNodeHref } from "@/lib/document-ids";
+
 export type RecentPageRecord = {
   id: string;
   title: string;
   href: string;
   visitedAt: string;
   iconId?: string;
+  colorId?: string;
 };
 
 export const EMPTY_RECENT_PAGES: RecentPageRecord[] = [];
@@ -24,9 +27,14 @@ function invalidateRecentPagesSnapshot() {
   cachedClientSnapshot = EMPTY_RECENT_PAGES;
 }
 
+export const DOCUMENT_PAGE_HREF_PATTERN = /^\/documents\/[^/]+$/;
+
+export function isDocumentPageHref(href: string) {
+  return parseDocumentNodeHref(href) !== null;
+}
+
 function shouldIncludeInRecentPages(page: Pick<RecentPageRecord, "href" | "iconId">) {
-  const href = page.href.trim();
-  if (!href || href === "/" || href === "/documents") return false;
+  if (!isDocumentPageHref(page.href)) return false;
   if (page.iconId === "folder") return false;
   return true;
 }
@@ -104,6 +112,7 @@ export function recordRecentPage(
     href,
     visitedAt: page.visitedAt ?? new Date().toISOString(),
     iconId: page.iconId,
+    colorId: page.colorId,
   };
 
   const next = filterRecentPages([

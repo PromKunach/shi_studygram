@@ -70,7 +70,7 @@ function RecentSection({
   const recentPages = useRecentPages().map(resolveRecentPageDisplay);
 
   return (
-    <div className="mt-5">
+    <div>
       <button
         type="button"
         onClick={onToggle}
@@ -96,7 +96,7 @@ function RecentSection({
       >
         <div className="overflow-hidden">
           {recentPages.length === 0 ? (
-            <p className="px-2.5 py-1.5 text-sm text-muted">No recent pages yet</p>
+            <p className="px-2.5 py-1.5 text-sm text-muted">No recent documents yet</p>
           ) : (
             <ul className="space-y-0.5">
               {recentPages.map((page) => {
@@ -273,6 +273,8 @@ export function AppSidebar({
             </ul>
           </div>
         ))}
+
+        <div className="my-5 border-t border-border" aria-hidden />
 
         <RecentSection
           isOpen={openItems[RECENT_OPEN_KEY] ?? true}

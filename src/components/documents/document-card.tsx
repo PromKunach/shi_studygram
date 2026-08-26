@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { DocumentCardCaptionMenu } from "@/components/documents/document-card-caption-menu";
+import { GoogleDriveLogo } from "@/components/documents/document-google-drive-inline";
 import {
   getDocumentColorStyles,
   type DocumentColorId,
@@ -9,6 +10,7 @@ import {
   type DocumentContentType,
   type DocumentIconId,
 } from "@/lib/document-icons";
+import { hasDocumentDriveLink } from "@/lib/documents";
 import { cn } from "@/lib/utils";
 import {
   DOCUMENT_CARD_CAPTION_GAP,
@@ -16,7 +18,6 @@ import {
   DOCUMENT_CARD_PADDING,
   DOCUMENT_CARD_RADIUS,
   DOCUMENT_CARD_WIDTH,
-  DOCUMENT_COLOR_FADE_HEIGHT,
   DOCUMENT_ICON_CLASS,
   FOLDER_BODY_OFFSET,
   FOLDER_BODY_RADIUS,
@@ -122,14 +123,20 @@ function CardIconContent({
   Icon,
   highlighted,
   colorStyles,
+  showDriveLogo = false,
 }: {
-  Icon: ReturnType<typeof getDocumentIcon>;
+  Icon?: ReturnType<typeof getDocumentIcon>;
   highlighted: boolean;
   colorStyles: ReturnType<typeof getDocumentColorStyles>;
+  showDriveLogo?: boolean;
 }) {
   return (
     <div className="relative mt-auto">
-      <Icon {...iconColorProps(highlighted, colorStyles)} strokeWidth={1.75} />
+      {showDriveLogo ? (
+        <GoogleDriveLogo className={DOCUMENT_ICON_CLASS} />
+      ) : Icon ? (
+        <Icon {...iconColorProps(highlighted, colorStyles)} strokeWidth={1.75} />
+      ) : null}
     </div>
   );
 }
@@ -139,40 +146,38 @@ function DocumentPageCardSurface({
   className,
   Icon,
   colorStyles,
+  showDriveLogo = false,
   children,
 }: {
   highlighted: boolean;
   className?: string;
-  Icon: ReturnType<typeof getDocumentIcon>;
+  Icon?: ReturnType<typeof getDocumentIcon>;
   colorStyles: ReturnType<typeof getDocumentColorStyles>;
+  showDriveLogo?: boolean;
   children?: React.ReactNode;
 }) {
   return (
     <div
       className={cn(
-        "group/card relative flex aspect-[4/5] flex-col overflow-hidden border border-border bg-sidebar transition-colors hover:bg-hover",
+        "group/card relative flex aspect-[4/5] flex-col overflow-hidden border border-border transition-colors hover:bg-hover",
         DOCUMENT_CARD_PADDING,
         DOCUMENT_CARD_RADIUS,
         DOCUMENT_CARD_WIDTH,
+        !colorStyles.hasColor && "bg-sidebar",
         className
       )}
+      style={
+        colorStyles.hasColor
+          ? { backgroundColor: colorStyles.cardBackground }
+          : undefined
+      }
     >
-      {colorStyles.hasColor && (
-        <div
-          aria-hidden
-          className={cn(
-            "pointer-events-none absolute inset-x-0 top-0",
-            DOCUMENT_COLOR_FADE_HEIGHT
-          )}
-          style={{ background: colorStyles.cardFill }}
-        />
-      )}
-
       {children ?? (
         <CardIconContent
           Icon={Icon}
           highlighted={highlighted}
           colorStyles={colorStyles}
+          showDriveLogo={showDriveLogo}
         />
       )}
     </div>
@@ -205,26 +210,19 @@ function FolderCardSurface({
 
       <div
         className={cn(
-          "absolute inset-x-0 bottom-0 z-10 flex flex-col overflow-hidden border border-border bg-sidebar transition-colors group-hover/card:bg-hover",
+          "absolute inset-x-0 bottom-0 z-10 flex flex-col overflow-hidden border border-border transition-colors group-hover/card:bg-hover",
           FOLDER_BODY_OFFSET,
           DOCUMENT_CARD_PADDING,
           DOCUMENT_CARD_RADIUS,
-          FOLDER_BODY_RADIUS
+          FOLDER_BODY_RADIUS,
+          !colorStyles.hasColor && "bg-sidebar"
         )}
+        style={
+          colorStyles.hasColor
+            ? { backgroundColor: colorStyles.cardBackground }
+            : undefined
+        }
       >
-        {colorStyles.hasColor && (
-          <div
-            aria-hidden
-            className={cn(
-              "pointer-events-none absolute inset-x-0 top-0",
-              DOCUMENT_CARD_RADIUS,
-              FOLDER_BODY_RADIUS,
-              DOCUMENT_COLOR_FADE_HEIGHT
-            )}
-            style={{ background: colorStyles.cardFill }}
-          />
-        )}
-
         <CardIconContent
           Icon={Icon}
           highlighted={highlighted}
@@ -247,17 +245,21 @@ function DocumentCardFrame({
   Icon,
   colorStyles,
   isFolder,
+  showDriveLogo = false,
 }: DocumentCardProps & {
-  Icon: ReturnType<typeof getDocumentIcon>;
+  Icon?: ReturnType<typeof getDocumentIcon>;
   colorStyles: ReturnType<typeof getDocumentColorStyles>;
   isFolder: boolean;
+  showDriveLogo?: boolean;
 }) {
   const widthClass = isFolder ? FOLDER_CARD_WIDTH : DOCUMENT_CARD_WIDTH;
+  const ResolvedIcon =
+    Icon ?? getDocumentIcon(isFolder ? "folder" : "file-text");
 
   const surface = isFolder ? (
     <FolderCardSurface
       highlighted={!!highlighted}
-      Icon={Icon}
+      Icon={ResolvedIcon}
       colorStyles={colorStyles}
     />
   ) : (
@@ -265,6 +267,7 @@ function DocumentCardFrame({
       highlighted={!!highlighted}
       Icon={Icon}
       colorStyles={colorStyles}
+      showDriveLogo={showDriveLogo}
     />
   );
 
@@ -329,7 +332,8 @@ export function DocumentCard({
   highlighted = false,
   className,
 }: DocumentCardProps) {
-  const Icon = getDocumentIcon(document.icon);
+  const showDriveLogo = hasDocumentDriveLink(document);
+  const Icon = showDriveLogo ? undefined : getDocumentIcon(document.icon);
   const colorStyles = getDocumentColorStyles(document.color);
   const isFolder = document.type === "folder";
 
@@ -346,6 +350,7 @@ export function DocumentCard({
       Icon={Icon}
       colorStyles={colorStyles}
       isFolder={isFolder}
+      showDriveLogo={showDriveLogo}
     />
   );
 }

@@ -4,7 +4,10 @@ import {
   FileText,
   Folder,
   Home,
+  Newspaper,
+  Loader,
 } from "lucide-react";
+import { getDocumentColorStyles, type DocumentColorId } from "@/lib/document-colors";
 import { getDocumentIcon, type DocumentIconId } from "@/lib/document-icons";
 import {
   formatRecentVisitedAt,
@@ -44,11 +47,12 @@ export type ContentPageRef = {
   visitedAt?: string;
 };
 
-export const RECENT_SECTION_LABEL = "Recent";
+export const RECENT_SECTION_LABEL = "เอกสารล่าสุด";
 
 /** Display metadata for a content page at a given URL slug. */
 export const PAGE_META: Record<string, { label: string; icon: LucideIcon }> = {
   "/": { label: "หน้าหลัก", icon: Home },
+  "/news": { label: "ข่าวสาร", icon: Loader },
   "/appointment": { label: "กำหนดการณ์", icon: CalendarDays },
   "/documents": { label: "เอกสาร", icon: Folder },
 };
@@ -70,6 +74,10 @@ export function resolveRecentPageDisplay(page: RecentPageRecord) {
     slug: page.href,
     visitedAt: formatRecentVisitedAt(page.visitedAt),
     icon,
+    colorId: page.colorId as DocumentColorId | undefined,
+    colorStyles: getDocumentColorStyles(
+      (page.colorId as DocumentColorId | undefined) ?? "none"
+    ),
   };
 }
 
@@ -79,6 +87,7 @@ export function getRecentlyVisitedPages() {
 
 export const NAV_TOP: NavItem[] = [
   { label: "หน้าหลัก", icon: Home, href: "/" },
+  { label: "อัพเดตงาน", icon: Loader, href: "/news" },
   { label: "เอกสาร", icon: Folder, href: "/documents" },
   { label: "กำหนดการณ์", icon: CalendarDays, href: "/appointment" },
 ];

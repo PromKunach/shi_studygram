@@ -17,9 +17,10 @@ import {
   updateDocumentPage,
   type DocumentNodeRecord,
 } from "@/lib/documents";
+import { isDocumentNodeId } from "@/lib/document-ids";
 import { PAGE_MAIN } from "@/lib/layout";
 import { recordRecentPage } from "@/lib/recent-pages";
-import { getAuthorPbriId, useCurrentUser } from "@/lib/userProfile";
+import { useCurrentUser } from "@/lib/userProfile";
 import { cn } from "@/lib/utils";
 
 type DocumentPageViewProps = {
@@ -47,8 +48,7 @@ function autoResize(element: HTMLTextAreaElement | null) {
 
 export function DocumentPageView({ documentId }: DocumentPageViewProps) {
   const router = useRouter();
-  const { user, ready } = useCurrentUser();
-  const authorPbriId = getAuthorPbriId(user);
+  const { ready } = useCurrentUser();
 
   const [node, setNode] = useState<DocumentNodeRecord | null>(null);
   const [title, setTitle] = useState("");
@@ -76,8 +76,15 @@ export function DocumentPageView({ documentId }: DocumentPageViewProps) {
     setIsLoading(true);
     hydratedRef.current = false;
 
+    if (!isDocumentNodeId(documentId)) {
+      setNode(null);
+      setLoadError("รหัสเอกสารไม่ถูกต้อง");
+      setIsLoading(false);
+      return;
+    }
+
     try {
-      const record = await fetchDocumentNode(authorPbriId, documentId);
+      const record = await fetchDocumentNode(documentId);
 
       if (!record) {
         setNode(null);
@@ -100,12 +107,21 @@ export function DocumentPageView({ documentId }: DocumentPageViewProps) {
       };
       hydratedRef.current = true;
     } catch (error) {
-      console.error(error);
+      const message =
+        error instanceof Error
+          ? error.message
+          : typeof error === "object" &&
+              error !== null &&
+              "message" in error &&
+              typeof (error as { message: unknown }).message === "string"
+            ? (error as { message: string }).message
+            : "unknown error";
+      console.error("Failed to load document", { documentId, message, error });
       setLoadError("โหลดเอกสารไม่สำเร็จ");
     } finally {
       setIsLoading(false);
     }
-  }, [authorPbriId, documentId]);
+  }, [documentId]);
 
   useEffect(() => {
     if (!ready) return;
@@ -120,6 +136,7 @@ export function DocumentPageView({ documentId }: DocumentPageViewProps) {
       title: node.title.trim() || "ไม่มีชื่อ",
       href: `/documents/${node.id}`,
       iconId: node.icon,
+      colorId: node.color,
     });
   }, [node]);
 
@@ -145,7 +162,7 @@ export function DocumentPageView({ documentId }: DocumentPageViewProps) {
       setSaveState("saving");
 
       try {
-        const updated = await updateDocumentPage(authorPbriId, nodeId, {
+        const updated = await updateDocumentPage(nodeId, {
           title: nextTitle,
           content: nextContent,
         });
@@ -177,7 +194,6 @@ export function DocumentPageView({ documentId }: DocumentPageViewProps) {
       cancelled = true;
     };
   }, [
-    authorPbriId,
     debouncedContent,
     debouncedTitle,
     isDebounceSynced,

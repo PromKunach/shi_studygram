@@ -4,6 +4,7 @@ import type { DocumentSection } from "@/components/documents/document-section-ro
 import type { DocumentColorId } from "@/lib/document-colors";
 import type { DocumentIconId } from "@/lib/document-icons";
 import { sortDocumentsWithFoldersFirst } from "@/lib/document-icons";
+import { isDocumentNodeId } from "@/lib/document-ids";
 import { supabase } from "@/lib/supabaseClient";
 
 export type DocumentNodeKind = "section" | "folder" | "page";
@@ -74,11 +75,10 @@ export function buildDocumentSections(
   });
 }
 
-async function getNextSiblingPosition(parentId: string | null, authorPbriId: string) {
+async function getNextSiblingPosition(parentId: string | null) {
   let query = supabase
     .from("document_nodes")
     .select("position")
-    .eq("author_pbri_id", authorPbriId)
     .order("position", { ascending: false })
     .limit(1);
 
@@ -98,16 +98,20 @@ export type DocumentBreadcrumbSegment = {
   title: string;
 };
 
-export async function fetchDocumentNodes(authorPbriId: string) {
+export async function fetchAllDocumentNodes() {
   const { data, error } = await supabase
     .from("document_nodes")
     .select("*")
-    .eq("author_pbri_id", authorPbriId)
     .order("position", { ascending: true })
     .order("created_at", { ascending: true });
 
   if (error) throw error;
   return (data ?? []) as DocumentNodeRecord[];
+}
+
+/** @deprecated Use fetchAllDocumentNodes — documents are shared publicly. */
+export async function fetchDocumentNodes(_authorPbriId?: string) {
+  return fetchAllDocumentNodes();
 }
 
 export function getNodeChildren(
@@ -145,8 +149,8 @@ export function buildSectionBreadcrumb(
   return segments;
 }
 
-export async function fetchDocumentWorkspace(authorPbriId: string) {
-  const nodes = await fetchDocumentNodes(authorPbriId);
+export async function fetchDocumentWorkspace() {
+  const nodes = await fetchAllDocumentNodes();
   return {
     sections: buildDocumentSections(nodes),
     nodes,
@@ -157,7 +161,7 @@ export async function createDocumentSection(
   authorPbriId: string,
   title: string
 ) {
-  const position = await getNextSiblingPosition(null, authorPbriId);
+  const position = await getNextSiblingPosition(null);
 
   const { data, error } = await supabase
     .from("document_nodes")
@@ -176,15 +180,14 @@ export async function createDocumentSection(
   return data as DocumentNodeRecord;
 }
 
-export async function fetchDocumentNode(
-  authorPbriId: string,
-  nodeId: string
-) {
+export async function fetchDocumentNode(nodeId: string) {
+  const id = nodeId.trim();
+  if (!isDocumentNodeId(id)) return null;
+
   const { data, error } = await supabase
     .from("document_nodes")
     .select("*")
-    .eq("id", nodeId)
-    .eq("author_pbri_id", authorPbriId)
+    .eq("id", id)
     .maybeSingle();
 
   if (error) throw error;
@@ -192,7 +195,6 @@ export async function fetchDocumentNode(
 }
 
 export async function updateDocumentNode(
-  authorPbriId: string,
   nodeId: string,
   payload: CreateDocumentPayload
 ) {
@@ -207,7 +209,6 @@ export async function updateDocumentNode(
         payload.type === "folder" ? "" : (payload.driveUrl ?? "").trim(),
     })
     .eq("id", nodeId)
-    .eq("author_pbri_id", authorPbriId)
     .select("*")
     .single();
 
@@ -216,7 +217,6 @@ export async function updateDocumentNode(
 }
 
 export async function updateDocumentPage(
-  authorPbriId: string,
   nodeId: string,
   patch: { title?: string; content?: string }
 ) {
@@ -238,7 +238,6 @@ export async function updateDocumentPage(
     .from("document_nodes")
     .update(updates)
     .eq("id", nodeId)
-    .eq("author_pbri_id", authorPbriId)
     .eq("kind", "page")
     .select("*")
     .single();
@@ -247,15 +246,8 @@ export async function updateDocumentPage(
   return data as DocumentNodeRecord;
 }
 
-export async function deleteDocumentNode(
-  authorPbriId: string,
-  nodeId: string
-) {
-  const { error } = await supabase
-    .from("document_nodes")
-    .delete()
-    .eq("id", nodeId)
-    .eq("author_pbri_id", authorPbriId);
+export async function deleteDocumentNode(nodeId: string) {
+  const { error } = await supabase.from("document_nodes").delete().eq("id", nodeId);
 
   if (error) throw error;
 }
@@ -265,7 +257,7 @@ export async function createDocumentNode(
   parentId: string,
   payload: CreateDocumentPayload
 ) {
-  const position = await getNextSiblingPosition(parentId, authorPbriId);
+  const position = await getNextSiblingPosition(parentId);
 
   const { data, error } = await supabase
     .from("document_nodes")
@@ -288,14 +280,10 @@ export async function createDocumentNode(
 }
 
 /** List direct children of a folder (nested navigation). */
-export async function fetchDocumentNodeChildren(
-  authorPbriId: string,
-  parentId: string
-) {
+export async function fetchDocumentNodeChildren(parentId: string) {
   const { data, error } = await supabase
     .from("document_nodes")
     .select("*")
-    .eq("author_pbri_id", authorPbriId)
     .eq("parent_id", parentId)
     .order("position", { ascending: true })
     .order("created_at", { ascending: true });

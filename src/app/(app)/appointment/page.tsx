@@ -260,6 +260,24 @@ export default function AppointmentPage() {
     void reloadAppointments()
   }, [reloadAppointments])
 
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search)
+    const dateParam = params.get("date")
+
+    if (dateParam && /^\d{4}-\d{2}-\d{2}$/.test(dateParam)) {
+      const [year, month, day] = dateParam.split("-").map(Number)
+      const parsed = new Date(year, month - 1, day)
+      if (!Number.isNaN(parsed.getTime())) {
+        setSelected(parsed)
+        setViewMonth(new Date(year, month - 1, 1))
+      }
+    }
+
+    if (params.get("add") === "1") {
+      setIsAddOpen(true)
+    }
+  }, [])
+
   const handleAddAppointment = useCallback(
     async (draft: AppointmentDraft) => {
       try {

@@ -5,7 +5,6 @@ import {
   DOCUMENT_CARD_PADDING,
   DOCUMENT_CARD_RADIUS,
   DOCUMENT_CARD_WIDTH,
-  DOCUMENT_COLOR_FADE_HEIGHT,
   DOCUMENT_ICON_CLASS,
   FOLDER_BODY_OFFSET,
   FOLDER_BODY_RADIUS,
@@ -45,14 +44,7 @@ function DocumentPageCardSkeleton() {
           DOCUMENT_CARD_HEIGHT
         )}
       >
-        <div
-          aria-hidden
-          className={cn(
-            "pointer-events-none absolute inset-x-0 top-0 bg-gradient-to-b from-border/15 to-transparent",
-            DOCUMENT_COLOR_FADE_HEIGHT
-          )}
-        />
-        <Skeleton className={cn("relative mt-auto", DOCUMENT_ICON_CLASS, "rounded-md")} />
+        <Skeleton className={cn("mt-auto", DOCUMENT_ICON_CLASS, "rounded-md")} />
       </div>
       <div className={cn(DOCUMENT_CARD_CAPTION_GAP, "space-y-1")}>
         <Skeleton className="h-3 w-full rounded-md sm:h-3.5" />
@@ -82,16 +74,7 @@ function FolderCardSkeleton() {
             FOLDER_BODY_RADIUS
           )}
         >
-          <div
-            aria-hidden
-            className={cn(
-              "pointer-events-none absolute inset-x-0 top-0 bg-gradient-to-b from-border/15 to-transparent",
-              DOCUMENT_CARD_RADIUS,
-              FOLDER_BODY_RADIUS,
-              DOCUMENT_COLOR_FADE_HEIGHT
-            )}
-          />
-          <Skeleton className={cn("relative mt-auto", DOCUMENT_ICON_CLASS, "rounded-md")} />
+          <Skeleton className={cn("mt-auto", DOCUMENT_ICON_CLASS, "rounded-md")} />
         </div>
       </div>
       <div className={cn(DOCUMENT_CARD_CAPTION_GAP, "space-y-1")}>
