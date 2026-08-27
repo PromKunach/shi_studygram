@@ -107,7 +107,7 @@ export function AppTopbar({
   }, [menuOpen]);
 
   return (
-    <header className="flex shrink-0 items-center gap-3 border-b border-border bg-background px-4 py-3 sm:px-6">
+    <header className="sticky top-0 z-30 flex shrink-0 items-center gap-3 border-b border-border bg-background px-4 py-3 sm:px-6">
       {(!isDesktop || !sidebarOpen) && (
         <button
           type="button"

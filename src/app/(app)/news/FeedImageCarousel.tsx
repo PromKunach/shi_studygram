@@ -1,6 +1,6 @@
 "use client"
 
-import { useMemo, useRef, useState } from "react"
+import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { ChevronLeft, ChevronRight } from "lucide-react"
 
 import {
@@ -25,23 +25,50 @@ export function FeedImageCarousel({ images }: { images: FeedPostImageRecord[] })
     [images]
   )
 
+  const syncActiveIndex = useCallback(() => {
+    const container = scrollRef.current
+    if (!container || images.length <= 1) return
+
+    const width = container.clientWidth
+    if (width <= 0) return
+
+    const index = Math.round(container.scrollLeft / width)
+    setActiveIndex(Math.min(images.length - 1, Math.max(0, index)))
+  }, [images.length])
+
+  useEffect(() => {
+    const container = scrollRef.current
+    if (!container || images.length <= 1) return
+
+    let scrollTimer: number | undefined
+
+    const onScroll = () => {
+      if (scrollTimer) window.clearTimeout(scrollTimer)
+      scrollTimer = window.setTimeout(syncActiveIndex, 150)
+    }
+
+    container.addEventListener("scroll", onScroll, { passive: true })
+    container.addEventListener("scrollend", syncActiveIndex)
+
+    return () => {
+      container.removeEventListener("scroll", onScroll)
+      container.removeEventListener("scrollend", syncActiveIndex)
+      if (scrollTimer) window.clearTimeout(scrollTimer)
+    }
+  }, [images.length, syncActiveIndex])
+
   if (images.length === 0) return null
 
   const scrollToIndex = (index: number) => {
     const container = scrollRef.current
     if (!container) return
-    const child = container.children[index] as HTMLElement | undefined
-    child?.scrollIntoView({ behavior: "smooth", inline: "center", block: "nearest" })
-    setActiveIndex(index)
-  }
 
-  const handleScroll = () => {
-    const container = scrollRef.current
-    if (!container || images.length <= 1) return
-    const width = container.clientWidth
-    if (width <= 0) return
-    const index = Math.round(container.scrollLeft / width)
-    setActiveIndex(Math.min(images.length - 1, Math.max(0, index)))
+    const nextIndex = Math.min(images.length - 1, Math.max(0, index))
+    container.scrollTo({
+      left: nextIndex * container.clientWidth,
+      behavior: "smooth",
+    })
+    setActiveIndex(nextIndex)
   }
 
   return (
@@ -49,26 +76,31 @@ export function FeedImageCarousel({ images }: { images: FeedPostImageRecord[] })
       <div className="relative">
         <div
           ref={scrollRef}
-          onScroll={handleScroll}
           className={cn(
-            "flex snap-x snap-mandatory overflow-x-auto no-scrollbar",
-            images.length > 1 && "scroll-smooth"
+            "flex snap-x snap-mandatory overflow-x-auto overscroll-x-contain touch-pan-x no-scrollbar",
+            "[-webkit-overflow-scrolling:touch]"
           )}
         >
           {lightboxImages.map((image, index) => (
-            <div key={image.id} className="w-full shrink-0 snap-center">
+            <div
+              key={image.id}
+              className="w-full min-w-full shrink-0 snap-center snap-always"
+            >
               <button
                 type="button"
                 onClick={() => setLightboxIndex(index)}
                 className="group relative block w-full cursor-zoom-in"
                 aria-label="ดูรูปขนาดเต็ม"
               >
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img
-                  src={image.url}
-                  alt=""
-                  className="max-h-[420px] w-full bg-hover object-contain transition-opacity group-hover:opacity-95"
-                />
+                <div className="aspect-[4/3] w-full bg-hover sm:aspect-auto sm:h-[420px]">
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img
+                    src={image.url}
+                    alt=""
+                    draggable={false}
+                    className="h-full w-full object-contain transition-opacity group-hover:opacity-95"
+                  />
+                </div>
               </button>
             </div>
           ))}
@@ -79,7 +111,7 @@ export function FeedImageCarousel({ images }: { images: FeedPostImageRecord[] })
             <button
               type="button"
               aria-label="รูปก่อนหน้า"
-              onClick={() => scrollToIndex(Math.max(0, activeIndex - 1))}
+              onClick={() => scrollToIndex(activeIndex - 1)}
               disabled={activeIndex === 0}
               className="absolute top-1/2 left-2 hidden -translate-y-1/2 rounded-full bg-black/50 p-1.5 text-white disabled:opacity-30 sm:inline-flex"
             >
@@ -88,7 +120,7 @@ export function FeedImageCarousel({ images }: { images: FeedPostImageRecord[] })
             <button
               type="button"
               aria-label="รูปถัดไป"
-              onClick={() => scrollToIndex(Math.min(images.length - 1, activeIndex + 1))}
+              onClick={() => scrollToIndex(activeIndex + 1)}
               disabled={activeIndex === images.length - 1}
               className="absolute top-1/2 right-2 hidden -translate-y-1/2 rounded-full bg-black/50 p-1.5 text-white disabled:opacity-30 sm:inline-flex"
             >

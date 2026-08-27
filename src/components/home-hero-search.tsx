@@ -6,7 +6,7 @@ import { AnimatePresence, motion } from "motion/react";
 import { HomeAiButton } from "@/components/home-ai-button";
 import { Input } from "@/components/ui/input";
 
-const AI_PLACEHOLDER = "ยกระดับการค้นหาด้วย AI ลอง /ค้นหา";
+const AI_PLACEHOLDER = "ยกระดับการค้นหาด้วย AI, ลอง /ค้นหา";
 
 function AiPlaceholderText({ text }: { text: string }) {
   return (
