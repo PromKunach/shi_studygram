@@ -328,7 +328,10 @@ export function buildDocumentSearchCatalog(
   const nodesById = new Map(nodes.map((node) => [node.id, node]));
 
   return nodes
-    .filter((node) => node.kind === "page")
+    .filter(
+      (node): node is DocumentSearchNode & { kind: "page" } =>
+        node.kind === "page"
+    )
     .map((node) => {
       const location = resolveLocationContext(node, nodesById);
 
@@ -354,7 +357,7 @@ export function stripCatalogInternalFields(
 export function enrichCatalogForAiSearch(
   catalog: DocumentSearchCatalogEntry[],
   query: string
-) {
+): DocumentSearchCatalogEntry[] {
   const terms = extractSearchTerms(query);
   const rankedIds = new Set<string>();
 

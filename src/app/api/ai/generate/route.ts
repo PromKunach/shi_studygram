@@ -74,14 +74,7 @@ export async function POST(request: Request) {
         prompt,
       });
 
-      return result.toTextStreamResponse({
-        onError: (error) => {
-          console.error("[api/ai/generate] stream", error);
-          return error instanceof Error
-            ? error.message
-            : "Failed to generate a response. Try again shortly.";
-        },
-      });
+      return result.toTextStreamResponse();
     }
 
     const result = await generateText({
