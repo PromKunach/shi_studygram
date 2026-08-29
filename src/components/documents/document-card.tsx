@@ -29,6 +29,7 @@ import {
 export type DocumentItem = {
   id: string;
   title: string;
+  description?: string;
   type: DocumentContentType;
   icon: DocumentIconId;
   color: DocumentColorId;
@@ -41,6 +42,7 @@ type DocumentCardProps = {
   href?: string;
   onOpen?: () => void;
   onEdit?: () => void;
+  onEditDescription?: () => void;
   onDelete?: () => void;
   isBusy?: boolean;
   highlighted?: boolean;
@@ -87,12 +89,14 @@ function CardCaptionRow({
   document,
   widthClass,
   onEdit,
+  onEditDescription,
   onDelete,
   isBusy,
 }: {
   document: DocumentItem;
   widthClass: string;
   onEdit?: () => void;
+  onEditDescription?: () => void;
   onDelete?: () => void;
   isBusy?: boolean;
 }) {
@@ -104,6 +108,7 @@ function CardCaptionRow({
         typeLabel={document.type === "folder" ? "folder" : "document"}
         className={widthClass}
         onEdit={onEdit}
+        onEditDescription={onEditDescription}
         onDelete={onDelete}
         isBusy={isBusy}
       />
@@ -238,6 +243,7 @@ function DocumentCardFrame({
   href,
   onOpen,
   onEdit,
+  onEditDescription,
   onDelete,
   isBusy,
   highlighted,
@@ -276,6 +282,7 @@ function DocumentCardFrame({
       document={document}
       widthClass={widthClass}
       onEdit={onEdit}
+      onEditDescription={onEditDescription}
       onDelete={onDelete}
       isBusy={isBusy}
     />
@@ -327,6 +334,7 @@ export function DocumentCard({
   href,
   onOpen,
   onEdit,
+  onEditDescription,
   onDelete,
   isBusy,
   highlighted = false,
@@ -343,6 +351,7 @@ export function DocumentCard({
       href={href}
       onOpen={onOpen}
       onEdit={onEdit}
+      onEditDescription={onEditDescription}
       onDelete={onDelete}
       isBusy={isBusy}
       highlighted={highlighted}

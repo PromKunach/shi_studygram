@@ -24,6 +24,7 @@ import { cn } from "@/lib/utils";
 
 export type CreateDocumentPayload = {
   title: string;
+  description?: string;
   type: DocumentContentType;
   icon: DocumentIconId;
   color: DocumentColorId;
@@ -37,6 +38,7 @@ type DocumentDialogProps = {
   document?: DocumentItem;
   onDelete?: () => void;
   isBusy?: boolean;
+  focusField?: "description";
 };
 
 const TYPE_OPTIONS: {
@@ -64,13 +66,16 @@ function DocumentDialog({
   document: editingDocument,
   onDelete,
   isBusy = false,
+  focusField,
 }: DocumentDialogProps) {
   const isEdit = Boolean(editingDocument);
   const titleId = isEdit ? "edit-document-title" : "create-document-title";
   const listboxId = useId();
   const iconMenuRef = useRef<HTMLDivElement>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
+  const descriptionRef = useRef<HTMLTextAreaElement>(null);
   const [title, setTitle] = useState("");
+  const [description, setDescription] = useState("");
   const [type, setType] = useState<DocumentContentType>("document");
   const [icon, setIcon] = useState<DocumentIconId>("file-text");
   const [color, setColor] = useState<DocumentColorId>(DEFAULT_DOCUMENT_COLOR);
@@ -105,12 +110,14 @@ function DocumentDialog({
     setConfirmDelete(false);
     if (editingDocument) {
       setTitle(editingDocument.title);
+      setDescription(editingDocument.description ?? "");
       setType(editingDocument.type);
       setIcon(editingDocument.icon);
       setColor(editingDocument.color);
       setDriveUrl(editingDocument.driveUrl ?? "");
     } else {
       setTitle("");
+      setDescription("");
       setType("document");
       setIcon("file-text");
       setColor(DEFAULT_DOCUMENT_COLOR);
@@ -124,6 +131,19 @@ function DocumentDialog({
     });
     return () => window.cancelAnimationFrame(frame);
   }, [open, editingDocument]);
+
+  useEffect(() => {
+    if (!open || focusField !== "description") return;
+
+    const frame = window.requestAnimationFrame(() => {
+      const el = descriptionRef.current;
+      if (!el) return;
+      el.scrollIntoView({ block: "center", behavior: "smooth" });
+      el.focus();
+    });
+
+    return () => window.cancelAnimationFrame(frame);
+  }, [open, focusField]);
 
   useEffect(() => {
     if (!open) return;
@@ -275,6 +295,7 @@ function DocumentDialog({
                     if (!canSubmit || isBusy) return;
                     onSubmit({
                       title: trimmed,
+                      description: description.trim(),
                       type,
                       icon,
                       color,
@@ -492,6 +513,23 @@ function DocumentDialog({
                   />
                 </div>
 
+                <div className="space-y-2">
+                  <Label htmlFor="document-description">คำอธิบาย</Label>
+                  <textarea
+                    ref={descriptionRef}
+                    id="document-description"
+                    value={description}
+                    onChange={(event) => setDescription(event.target.value)}
+                    placeholder="เช่น วิชาชีววิทยา การสืบพันธุ์ สรุปบทเรียน"
+                    rows={3}
+                    maxLength={500}
+                    className="mt-2 w-full resize-none rounded-lg border border-border bg-sidebar px-3 py-2 text-sm text-foreground shadow-none outline-none transition-colors placeholder:text-muted focus:border-foreground/20 focus:bg-hover"
+                  />
+                  <p className="text-xs text-muted">
+                    ช่วยให้ AI ค้นหาเอกสารได้แม่นยำขึ้น
+                  </p>
+                </div>
+
                 {type === "document" && (
                   <div className="space-y-2">
                     <Label htmlFor="document-drive-url">ลิงก์ Google Drive</Label>
@@ -604,16 +642,19 @@ export function CreateDocumentDialog(
 export function EditDocumentDialog({
   document,
   onDelete,
+  focusField,
   ...props
 }: Omit<DocumentDialogProps, "document" | "onDelete"> & {
   document: DocumentItem;
   onDelete: () => void;
+  focusField?: "description";
 }) {
   return (
     <DocumentDialog
       {...props}
       document={document}
       onDelete={onDelete}
+      focusField={focusField}
     />
   );
 }

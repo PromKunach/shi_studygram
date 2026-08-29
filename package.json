@@ -11,9 +11,12 @@
     "test:watch": "vitest"
   },
   "dependencies": {
+    "@ai-sdk/gateway": "^4.0.68",
+    "@ai-sdk/huggingface": "^2.0.40",
     "@base-ui/react": "^1.7.0",
     "@radix-ui/react-label": "^2.1.15",
     "@supabase/supabase-js": "^2.112.3",
+    "ai": "^7.0.84",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "lucide-react": "^1.32.0",

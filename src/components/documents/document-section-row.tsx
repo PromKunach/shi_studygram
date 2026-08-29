@@ -31,6 +31,7 @@ type DocumentSectionRowProps = {
   onOpenFolder: (document: DocumentItem) => void;
   onOpenDriveDocument?: (document: DocumentItem) => void;
   onEditDocument: (document: DocumentItem) => void;
+  onEditDocumentDescription: (document: DocumentItem) => void;
   onDeleteDocument: (document: DocumentItem) => void;
   isSaving?: boolean;
 };
@@ -62,6 +63,7 @@ export function DocumentSectionRow({
   onOpenFolder,
   onOpenDriveDocument,
   onEditDocument,
+  onEditDocumentDescription,
   onDeleteDocument,
   isSaving = false,
 }: DocumentSectionRowProps) {
@@ -203,6 +205,7 @@ export function DocumentSectionRow({
                   : undefined
               }
               onEdit={() => onEditDocument(document)}
+              onEditDescription={() => onEditDocumentDescription(document)}
               onDelete={() => onDeleteDocument(document)}
               isBusy={isSaving}
             />

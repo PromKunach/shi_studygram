@@ -15,6 +15,7 @@ export type DocumentNodeRecord = {
   parent_id: string | null;
   kind: DocumentNodeKind;
   title: string;
+  description: string;
   content: string;
   drive_url: string;
   icon: string;
@@ -35,6 +36,7 @@ function toDocumentItem(row: DocumentNodeRecord): DocumentItem {
   return {
     id: row.id,
     title: row.title,
+    description: row.description?.trim() || undefined,
     type: row.kind === "folder" ? "folder" : "document",
     icon: row.icon as DocumentIconId,
     color: row.color as DocumentColorId,
@@ -203,6 +205,7 @@ export async function updateDocumentNode(
     .update({
       kind: payload.type === "folder" ? "folder" : "page",
       title: payload.title.trim(),
+      description: (payload.description ?? "").trim(),
       icon: payload.icon,
       color: payload.color,
       drive_url:
@@ -266,6 +269,7 @@ export async function createDocumentNode(
       parent_id: parentId,
       kind: payload.type === "folder" ? "folder" : "page",
       title: payload.title.trim(),
+      description: (payload.description ?? "").trim(),
       icon: payload.icon,
       color: payload.color,
       drive_url:

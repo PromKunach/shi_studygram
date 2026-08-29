@@ -87,8 +87,9 @@ export function getRecentlyVisitedPages() {
 
 export const NAV_TOP: NavItem[] = [
   { label: "หน้าหลัก", icon: Home, href: "/" },
-  { label: "อัพเดตงาน", icon: Loader, href: "/news" },
   { label: "เอกสาร", icon: Folder, href: "/documents" },
+
+  { label: "อัพเดตงาน", icon: Loader, href: "/news" },
   { label: "กำหนดการณ์", icon: CalendarDays, href: "/appointment" },
 ];
 

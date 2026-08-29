@@ -9,7 +9,7 @@ import {
   useState,
 } from "react";
 import { createPortal } from "react-dom";
-import { ChevronDown, Pencil, Trash2 } from "lucide-react";
+import { ChevronDown, FileText, Pencil, Trash2 } from "lucide-react";
 import { AnimatePresence, motion } from "motion/react";
 import { DOCUMENT_CARD_CAPTION_GAP } from "@/components/documents/document-card-metrics";
 import { cn } from "@/lib/utils";
@@ -22,6 +22,7 @@ type DocumentCardCaptionMenuProps = {
   typeLabel: "folder" | "document";
   className?: string;
   onEdit: () => void;
+  onEditDescription?: () => void;
   onDelete: () => void;
   isBusy?: boolean;
 };
@@ -32,6 +33,7 @@ export function DocumentCardCaptionMenu({
   typeLabel,
   className,
   onEdit,
+  onEditDescription,
   onDelete,
   isBusy = false,
 }: DocumentCardCaptionMenuProps) {
@@ -171,6 +173,21 @@ export function DocumentCardCaptionMenu({
                     <Pencil className="h-3.5 w-3.5 shrink-0" />
                     แก้ไข
                   </button>
+                  {onEditDescription ? (
+                    <button
+                      type="button"
+                      role="menuitem"
+                      disabled={isBusy}
+                      onClick={() => {
+                        onEditDescription();
+                        setOpen(false);
+                      }}
+                      className="flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-left text-sm text-foreground hover:bg-hover"
+                    >
+                      <FileText className="h-3.5 w-3.5 shrink-0" />
+                      คำอธิบาย
+                    </button>
+                  ) : null}
                   <button
                     type="button"
                     role="menuitem"

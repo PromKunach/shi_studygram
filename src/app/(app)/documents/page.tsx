@@ -48,9 +48,10 @@ function matchesSearch(
 
   if (section.title.toLowerCase().includes(normalized)) return true;
 
-  return documents.some((document) =>
-    document.title.toLowerCase().includes(normalized)
-  );
+  return documents.some((document) => {
+    const haystack = `${document.title} ${document.description ?? ""}`.toLowerCase();
+    return haystack.includes(normalized);
+  });
 }
 
 function pruneFolderStack(
@@ -87,6 +88,9 @@ export default function DocumentsPage() {
   const [editingDocument, setEditingDocument] = useState<DocumentItem | null>(
     null
   );
+  const [editingFocusField, setEditingFocusField] = useState<
+    "description" | null
+  >(null);
   const [drivePreview, setDrivePreview] = useState<{
     name: string;
     url: string;
@@ -217,6 +221,7 @@ export default function DocumentsPage() {
       await updateDocumentNode(editingDocument.id, payload);
       await loadWorkspace({ silent: true });
       setEditingDocument(null);
+      setEditingFocusField(null);
     } catch (error) {
       console.error(error);
       setLoadError("บันทึกการแก้ไขไม่สำเร็จ");
@@ -349,7 +354,14 @@ export default function DocumentsPage() {
                       url: document.driveUrl,
                     });
                   }}
-                  onEditDocument={setEditingDocument}
+                  onEditDocument={(document) => {
+                    setEditingFocusField(null);
+                    setEditingDocument(document);
+                  }}
+                  onEditDocumentDescription={(document) => {
+                    setEditingFocusField("description");
+                    setEditingDocument(document);
+                  }}
                   onDeleteDocument={(document) =>
                     void handleDeleteDocument(document)
                   }
@@ -378,7 +390,11 @@ export default function DocumentsPage() {
         <EditDocumentDialog
           open
           document={editingDocument}
-          onClose={() => setEditingDocument(null)}
+          focusField={editingFocusField ?? undefined}
+          onClose={() => {
+            setEditingDocument(null);
+            setEditingFocusField(null);
+          }}
           onSubmit={handleUpdateDocument}
           onDelete={() => void handleDeleteDocument()}
           isBusy={isSaving}
