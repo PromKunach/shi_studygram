@@ -30,6 +30,54 @@ const SUBJECT_ALIAS_GROUPS = [
   ],
 ] as const;
 
+const TOPIC_ALIAS_GROUPS = [
+  [
+    "species",
+    "taxonomy",
+    "taxonomic",
+    "classification",
+    "classify",
+    "binomial",
+    "kingdom",
+    "phylum",
+    "genus",
+    "organism",
+    "organisms",
+    "ชนิด",
+    "อนุกรมวิธาน",
+    "การจำแนก",
+  ],
+  [
+    "photosynthesis",
+    "chlorophyll",
+    "สังเคราะห์ด้วยแสง",
+    "สังเคราะห์แสง",
+  ],
+  [
+    "cell",
+    "cells",
+    "organelle",
+    "mitochondria",
+    "nucleus",
+    "เซลล์",
+  ],
+  [
+    "evolution",
+    "natural selection",
+    "วิวัฒนาการ",
+    "คัดเลือกโดยธรรมชาติ",
+  ],
+  [
+    "ecosystem",
+    "ecology",
+    "food chain",
+    "นิเวศ",
+    "ห่วงโซ่อาหาร",
+  ],
+] as const;
+
+const ALIAS_GROUPS = [...SUBJECT_ALIAS_GROUPS, ...TOPIC_ALIAS_GROUPS];
+
 function normalizeAliasText(value: string) {
   return value.trim().toLowerCase().replace(/\s+/g, " ");
 }
@@ -41,7 +89,7 @@ function aliasMatchesText(alias: string, text: string) {
 function getAliasGroupForText(text: string) {
   const normalized = normalizeAliasText(text);
 
-  for (const group of SUBJECT_ALIAS_GROUPS) {
+  for (const group of ALIAS_GROUPS) {
     const normalizedGroup = group.map(normalizeAliasText);
 
     if (

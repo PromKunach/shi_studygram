@@ -65,6 +65,32 @@ const OPEN_EXPLANATION_PATTERNS = [
   /\?$/,
 ];
 
+const DOCUMENT_TOPIC_PATTERNS = [
+  /(?:is there|are there|do you have|got any|can i find|could i find).*(?:about|on|contain|regarding|related)/i,
+  /(?:anything|something).*(?:about|on|regarding|related)/i,
+  /(?:มี|มีไหม|มีบ้าง|มีอะไร).*(?:เกี่ยว|เรื่อง|เนื้อหา)/,
+  /(?:document|documents|page|pages).*(?:about|on|contain|regarding|related)/i,
+];
+
+function isDocumentTopicQuestion(query: string) {
+  return DOCUMENT_TOPIC_PATTERNS.some((pattern) => pattern.test(query.trim()));
+}
+
+const APPOINTMENT_QUESTION_PATTERNS = [
+  /(?:appointment|appointments|schedule|scheduled|deadline|deadlines|calendar|due date)/i,
+  /(?:นัดหมาย|กำหนดการ|ปฏิทิน|กำหนดส่ง|วันนัด|มีนัด|นัด)/,
+];
+
+function mentionsDocuments(query: string) {
+  return /(?:document|documents|page|pages|เอกสาร|หน้า)/i.test(query);
+}
+
+function isAppointmentQuestion(query: string) {
+  return APPOINTMENT_QUESTION_PATTERNS.some((pattern) =>
+    pattern.test(query.trim())
+  );
+}
+
 function isWorkspaceInventoryQuestion(query: string) {
   const trimmed = query.trim();
   if (!WORKSPACE_INVENTORY_PATTERNS.some((pattern) => pattern.test(trimmed))) {
@@ -111,13 +137,26 @@ export function inferSearchQuery(prompt: string) {
   let query = normalizeUserSearchQuery(prompt);
 
   const leadingToken =
-    /^(?:ช่วย|ขอ|ได้ไหม|อยาก|เอา|แนะนำ|บอก|หา|ค้นหา|find|search|show|give me|show me|I want|I need|looking for|please)\s*/i;
+    /^(?:ช่วย|ขอ|ได้ไหม|อยาก|เอา|แนะนำ|บอก|หา|ค้นหา|find|search|show|give me|show me|I want|I need|looking for|please|is there|are there|do you have|can you find|could you find|i am looking for|i'm looking for)\s*/i;
+
+  const topicStripPatterns = [
+    /^(?:a|an|any)\s+/i,
+    /^(?:document|documents|page|pages|material|materials|file|files)\s+/i,
+    /^(?:that\s+)?(?:might\s+|may\s+)?(?:contain|contains|containing|about|on|regarding|related to|with|for)\s+/i,
+    /^(?:anything|something)\s+(?:about|on|regarding|related to)\s+/i,
+    /^(?:about|on|regarding|related to)\s+/i,
+  ];
 
   let previous = "";
   while (query !== previous) {
     previous = query;
     query = query.replace(leadingToken, "").trim();
+    for (const pattern of topicStripPatterns) {
+      query = query.replace(pattern, "").trim();
+    }
   }
+
+  query = query.replace(/\?+$/g, "").trim();
 
   query = query
     .replace(/\s*(?:ให้หน่อย|หน่อย|ที|นะ|ครับ|ค่ะ|ได้ไหม|please)\s*$/i, "")
@@ -181,6 +220,10 @@ export function detectSearchIntent(
   if (isSearchCapabilityQuestion(query)) return false;
 
   if (isWorkspaceInventoryQuestion(query)) return false;
+
+  if (isAppointmentQuestion(query) && !mentionsDocuments(query)) return false;
+
+  if (isDocumentTopicQuestion(query)) return true;
 
   if (hasExplicitSearchIntent(prompt)) return true;
 

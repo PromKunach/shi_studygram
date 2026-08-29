@@ -51,11 +51,18 @@ export async function searchDocumentsWithAi(
 
   const parsed = parseSearchModelOutput(result.text);
   let message = parsed.message;
-  let matches = applyStrictSearchFilter(
+  const validated = validateSearchResults(parsed.results, catalogById);
+  const strictMatches = applyStrictSearchFilter(
     query,
-    validateSearchResults(parsed.results, catalogById),
+    validated,
     catalogById
   );
+  let matches =
+    strictMatches.length > 0
+      ? strictMatches
+      : validated.length > 0
+        ? validated
+        : [];
 
   if (matches.length === 0) {
     const fallback = fallbackDocumentSearch(query, catalog);

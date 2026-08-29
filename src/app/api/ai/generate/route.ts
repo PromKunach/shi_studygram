@@ -10,6 +10,7 @@ import { searchDocumentsWithAi } from "@/lib/ai/document-search";
 import { resolveAiIntent } from "@/lib/ai/intent";
 import { buildAiWorkspaceContext } from "@/lib/ai/workspace-context";
 import { aiGenerateRequestSchema } from "@/lib/ai/validation";
+import { fetchAppointmentsForAiContext } from "@/lib/appointments";
 import { fetchAllDocumentNodes } from "@/lib/documents";
 
 export const runtime = "nodejs";
@@ -37,7 +38,13 @@ export async function POST(request: Request) {
   }
 
   const { prompt, stream } = parsed.data;
-  const nodes = await fetchAllDocumentNodes();
+  const [nodes, appointments] = await Promise.all([
+    fetchAllDocumentNodes(),
+    fetchAppointmentsForAiContext(),
+  ]);
+  const workspace = buildAiWorkspaceContext(nodes, appointments, {
+    appointmentQuery: prompt,
+  });
   const intent = resolveAiIntent(prompt, nodes);
 
   if (intent.mode === "search") {
@@ -64,7 +71,7 @@ export async function POST(request: Request) {
   }
 
   const model = getAiModel();
-  const system = getAiChatSystemPrompt(buildAiWorkspaceContext(nodes));
+  const system = getAiChatSystemPrompt(workspace);
 
   try {
     if (stream) {

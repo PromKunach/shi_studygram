@@ -53,6 +53,13 @@ describe("search aliases", () => {
     expect(termMatchesHaystackWithAliases("คณิตศาสตร์", "math homework")).toBe(2);
     expect(queryMatchesTextWithAliases("คณิตศาสตร์", "math")).toBe(true);
   });
+
+  it("matches related topic aliases such as species and taxonomy", () => {
+    expect(textsMatchAcrossAliases("species", "taxonomy")).toBe(true);
+    expect(termMatchesHaystackWithAliases("species", "notes on taxonomy")).toBe(
+      2
+    );
+  });
 });
 
 describe("bilingual document search", () => {

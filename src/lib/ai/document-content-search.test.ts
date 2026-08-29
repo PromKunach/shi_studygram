@@ -127,4 +127,53 @@ describe("document content search", () => {
     const enriched = enrichCatalogForAiSearch(catalog, "สังเคราะห์ด้วยแสง");
     expect(enriched[0]?.contentSnippet).toContain("สังเคราะห์ด้วยแสง");
   });
+
+  it("matches related topics such as species against taxonomy content", () => {
+    const nodes = [
+      {
+        id: "11111111-1111-1111-1111-111111111111",
+        author_pbri_id: "user-1",
+        parent_id: null,
+        kind: "section" as const,
+        title: "Biology",
+        description: "",
+        content: "",
+        drive_url: "",
+        icon: "book",
+        color: "blue",
+        position: 0,
+        created_at: "2026-01-01T00:00:00.000Z",
+        updated_at: "2026-01-01T00:00:00.000Z",
+      },
+      {
+        id: "22222222-2222-2222-2222-222222222222",
+        author_pbri_id: "user-1",
+        parent_id: "11111111-1111-1111-1111-111111111111",
+        kind: "page" as const,
+        title: "Classification notes",
+        description: "",
+        content: serializeDocumentContent([
+          createDocumentBlock(
+            "paragraph",
+            "Taxonomy is the science of naming and classifying species."
+          ),
+        ]),
+        drive_url: "",
+        icon: "page",
+        color: "blue",
+        position: 0,
+        created_at: "2026-01-01T00:00:00.000Z",
+        updated_at: "2026-01-01T00:00:00.000Z",
+      },
+    ];
+
+    const catalog = buildDocumentSearchCatalog(nodes);
+    const page = catalog[0]!;
+
+    expect(scoreDocumentRelevance("species", page)).toBeGreaterThan(0);
+    expect(scoreDocumentRelevance("taxonomy", page)).toBeGreaterThan(0);
+
+    const enriched = enrichCatalogForAiSearch(catalog, "species");
+    expect(enriched[0]?.contentSnippet?.toLowerCase()).toContain("taxonomy");
+  });
 });

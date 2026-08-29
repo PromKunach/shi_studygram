@@ -110,4 +110,38 @@ describe("ai intent", () => {
     });
     expect(detectSearchIntent("มีอะไรในคณิตบ้าง", catalog)).toBe(true);
   });
+
+  it("detects conversational document topic questions as search", () => {
+    expect(
+      detectSearchIntent("is there a document about species", catalog)
+    ).toBe(true);
+    expect(
+      detectSearchIntent(
+        "is there document that might contains something about species",
+        catalog
+      )
+    ).toBe(true);
+    expect(detectSearchIntent("is there anything about species", catalog)).toBe(
+      true
+    );
+  });
+
+  it("extracts the topic from conversational English questions", () => {
+    expect(
+      inferSearchQuery(
+        "is there document that might contains something about species"
+      )
+    ).toBe("species");
+    expect(inferSearchQuery("is there anything about taxonomy?")).toBe(
+      "taxonomy"
+    );
+  });
+
+  it("keeps appointment questions in chat mode", () => {
+    expect(detectSearchIntent("what appointments do I have this week?", catalog)).toBe(
+      false
+    );
+    expect(detectSearchIntent("มีนัดอะไรบ้าง", catalog)).toBe(false);
+    expect(resolveAiIntent("มีนัดอะไรบ้าง", nodes)).toEqual({ mode: "chat" });
+  });
 });
