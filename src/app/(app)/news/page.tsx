@@ -168,7 +168,7 @@ export default function NewsFeedPage() {
             </div>
             <div>
               <h1 className="text-2xl font-semibold tracking-tight text-foreground">
-                ฟีดข่าวสาร
+                อัพเดตงาน
               </h1>
               <p className="mt-0.5 text-sm text-muted">
                 แชร์ข่าวสารและภาพกิจกรรมกับสมาชิก

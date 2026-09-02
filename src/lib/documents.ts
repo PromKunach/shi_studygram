@@ -111,6 +111,106 @@ export async function fetchAllDocumentNodes() {
   return (data ?? []) as DocumentNodeRecord[];
 }
 
+export async function fetchSelectableDocumentItems(): Promise<DocumentItem[]> {
+  const { items } = await fetchDocumentPickerData();
+  return items;
+}
+
+export async function fetchDocumentPickerData(): Promise<{
+  nodes: DocumentNodeRecord[];
+  items: DocumentItem[];
+}> {
+  const nodes = await fetchAllDocumentNodes();
+  return {
+    nodes,
+    items: sortDocumentsWithFoldersFirst(
+      nodes
+        .filter((node) => node.kind === "folder" || node.kind === "page")
+        .map(toDocumentItem)
+    ),
+  };
+}
+
+export function normalizeFolderStack(
+  nodes: DocumentNodeRecord[],
+  folderStack: string[]
+): string[] {
+  const next: string[] = [];
+
+  for (const folderId of folderStack) {
+    const folder = nodes.find(
+      (node) => node.id === folderId && node.kind === "folder"
+    );
+    if (!folder) break;
+    next.push(folderId);
+  }
+
+  return next;
+}
+
+export function buildFolderNavigationContext(
+  nodes: DocumentNodeRecord[],
+  folderId: string
+): { sectionId: string; folderStack: string[] } | null {
+  const chain: DocumentNodeRecord[] = [];
+  let current = nodes.find((node) => node.id === folderId) ?? null;
+
+  while (current) {
+    if (current.kind === "section") {
+      if (chain.length === 0) return null;
+      return {
+        sectionId: current.id,
+        folderStack: chain
+          .slice()
+          .reverse()
+          .map((node) => node.id),
+      };
+    }
+
+    if (current.kind !== "folder") return null;
+
+    chain.push(current);
+
+    if (!current.parent_id) return null;
+    current = nodes.find((node) => node.id === current!.parent_id) ?? null;
+  }
+
+  return null;
+}
+
+export type DocumentOpenTarget =
+  | { type: "internal"; href: string }
+  | { type: "external"; href: string };
+
+export function getDocumentOpenTarget(
+  documentId: string,
+  nodes: DocumentNodeRecord[]
+): DocumentOpenTarget | null {
+  const node = nodes.find((item) => item.id === documentId);
+  if (!node) return null;
+
+  if (node.kind === "page") {
+    const item = toDocumentItem(node);
+    if (hasDocumentDriveLink(item)) {
+      return { type: "external", href: item.driveUrl!.trim() };
+    }
+    return { type: "internal", href: `/documents/${node.id}` };
+  }
+
+  if (node.kind === "folder") {
+    const context = buildFolderNavigationContext(nodes, node.id);
+    if (!context) return { type: "internal", href: "/documents" };
+
+    const folders = context.folderStack.join(",");
+    return {
+      type: "internal",
+      href: `/documents?section=${context.sectionId}&folders=${folders}`,
+    };
+  }
+
+  return null;
+}
+
 /** @deprecated Use fetchAllDocumentNodes — documents are shared publicly. */
 export async function fetchDocumentNodes(_authorPbriId?: string) {
   return fetchAllDocumentNodes();

@@ -12,6 +12,7 @@ import { GoogleDrivePreviewModal } from "@/components/documents/document-google-
 import { getDocumentColorStyles } from "@/lib/document-colors";
 import type { DocumentColorId } from "@/lib/document-colors";
 import { getDocumentIcon, type DocumentIconId } from "@/lib/document-icons";
+import { toGoogleDrivePreviewUrl } from "@/lib/document-blocks";
 import {
   fetchDocumentNode,
   updateDocumentPage,
@@ -25,6 +26,7 @@ import { cn } from "@/lib/utils";
 
 type DocumentPageViewProps = {
   documentId: string;
+  embed?: boolean;
 };
 
 type SaveState = "idle" | "saving" | "saved" | "error";
@@ -46,7 +48,7 @@ function autoResize(element: HTMLTextAreaElement | null) {
   element.style.height = `${element.scrollHeight}px`;
 }
 
-export function DocumentPageView({ documentId }: DocumentPageViewProps) {
+export function DocumentPageView({ documentId, embed = false }: DocumentPageViewProps) {
   const router = useRouter();
   const { ready } = useCurrentUser();
 
@@ -129,7 +131,7 @@ export function DocumentPageView({ documentId }: DocumentPageViewProps) {
   }, [ready, loadDocument]);
 
   useEffect(() => {
-    if (!node || node.kind !== "page") return;
+    if (!node || node.kind !== "page" || embed) return;
 
     recordRecentPage({
       id: node.id,
@@ -138,13 +140,14 @@ export function DocumentPageView({ documentId }: DocumentPageViewProps) {
       iconId: node.icon,
       colorId: node.color,
     });
-  }, [node]);
+  }, [node, embed]);
 
   useEffect(() => {
     autoResize(titleRef.current);
   }, [title, isLoading]);
 
   useEffect(() => {
+    if (embed) return;
     if (!hydratedRef.current || !node || node.kind !== "page") return;
     if (node.drive_url?.trim()) return;
     if (!isDebounceSynced) return;
@@ -239,95 +242,125 @@ export function DocumentPageView({ documentId }: DocumentPageViewProps) {
   const isDriveLinkedPage = driveUrl.length > 0;
 
   return (
-    <main className={cn(PAGE_MAIN, "pb-24")}>
-      <article className="mx-auto w-full max-w-3xl">
-        <div
-          ref={toolbarSentinelRef}
-          className="pointer-events-none h-px"
-          aria-hidden
-        />
-        <div
-          className={cn(
-            "sticky top-0 z-20 -mx-4 mb-8 flex items-center justify-between gap-4 bg-background px-4 py-3",
-            "sm:-mx-6 sm:px-6 md:-mx-10 md:px-10 lg:-mx-16 lg:px-16",
-            isToolbarStuck && "border-b border-border shadow-sm"
-          )}
-        >
-          <Link
-            href="/documents"
-            className="inline-flex items-center gap-2 text-sm text-muted transition-colors hover:text-foreground"
-          >
-            <ArrowLeft className="h-4 w-4" />
-            เอกสาร
-          </Link>
-
-          <div className="flex items-center gap-1 sm:gap-2">
-            {!isWorkspaceLoading && !isDriveLinkedPage && saveState !== "idle" && (
-              <p
-                className={cn(
-                  "mr-1 text-xs",
-                  saveState === "error" ? "text-destructive" : "text-muted"
-                )}
+    <main
+      className={cn(
+        embed ? "px-4 py-4 pb-8" : cn(PAGE_MAIN, "pb-24")
+      )}
+    >
+      <article className={cn("mx-auto w-full", embed ? "max-w-none" : "max-w-3xl")}>
+        {!embed ? (
+          <>
+            <div
+              ref={toolbarSentinelRef}
+              className="pointer-events-none h-px"
+              aria-hidden
+            />
+            <div
+              className={cn(
+                "sticky top-0 z-20 -mx-4 mb-8 flex items-center justify-between gap-4 bg-background px-4 py-3",
+                "sm:-mx-6 sm:px-6 md:-mx-10 md:px-10 lg:-mx-16 lg:px-16",
+                isToolbarStuck && "border-b border-border shadow-sm"
+              )}
+            >
+              <Link
+                href="/documents"
+                className="inline-flex items-center gap-2 text-sm text-muted transition-colors hover:text-foreground"
               >
-                {saveState === "saving" && "กำลังบันทึก…"}
-                {saveState === "saved" && "บันทึกแล้ว"}
-                {saveState === "error" && "บันทึกไม่สำเร็จ"}
-              </p>
-            )}
+                <ArrowLeft className="h-4 w-4" />
+                เอกสาร
+              </Link>
 
-            {!isDriveLinkedPage && (
-              <>
-                <button
-                  type="button"
-                  onClick={() => editorRef.current?.undo()}
-                  disabled={!canUndo || isWorkspaceLoading}
-                  aria-label="เลิกทำ"
-                  className="inline-flex h-9 w-9 touch-manipulation items-center justify-center rounded-md text-foreground transition-colors hover:bg-hover disabled:pointer-events-none disabled:opacity-30"
-                >
-                  <Undo2 className="h-5 w-5" />
-                </button>
-                <button
-                  type="button"
-                  onClick={() => editorRef.current?.redo()}
-                  disabled={!canRedo || isWorkspaceLoading}
-                  aria-label="ทำซ้ำ"
-                  className="inline-flex h-9 w-9 touch-manipulation items-center justify-center rounded-md text-foreground transition-colors hover:bg-hover disabled:pointer-events-none disabled:opacity-30"
-                >
-                  <Redo2 className="h-5 w-5" />
-                </button>
-              </>
-            )}
-          </div>
-        </div>
+              <div className="flex items-center gap-1 sm:gap-2">
+                {!isWorkspaceLoading && !isDriveLinkedPage && saveState !== "idle" && (
+                  <p
+                    className={cn(
+                      "mr-1 text-xs",
+                      saveState === "error" ? "text-destructive" : "text-muted"
+                    )}
+                  >
+                    {saveState === "saving" && "กำลังบันทึก…"}
+                    {saveState === "saved" && "บันทึกแล้ว"}
+                    {saveState === "error" && "บันทึกไม่สำเร็จ"}
+                  </p>
+                )}
+
+                {!isDriveLinkedPage && (
+                  <>
+                    <button
+                      type="button"
+                      onClick={() => editorRef.current?.undo()}
+                      disabled={!canUndo || isWorkspaceLoading}
+                      aria-label="เลิกทำ"
+                      className="inline-flex h-9 w-9 touch-manipulation items-center justify-center rounded-md text-foreground transition-colors hover:bg-hover disabled:pointer-events-none disabled:opacity-30"
+                    >
+                      <Undo2 className="h-5 w-5" />
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => editorRef.current?.redo()}
+                      disabled={!canRedo || isWorkspaceLoading}
+                      aria-label="ทำซ้ำ"
+                      className="inline-flex h-9 w-9 touch-manipulation items-center justify-center rounded-md text-foreground transition-colors hover:bg-hover disabled:pointer-events-none disabled:opacity-30"
+                    >
+                      <Redo2 className="h-5 w-5" />
+                    </button>
+                  </>
+                )}
+              </div>
+            </div>
+          </>
+        ) : null}
 
         {isWorkspaceLoading ? (
           <DocumentPageSkeleton />
         ) : loadError ? (
           <div className="rounded-2xl border border-dashed border-border bg-sidebar px-6 py-14 text-center">
             <p className="text-sm text-muted">{loadError}</p>
-            <Link
-              href="/documents"
-              className="mt-4 inline-block text-sm font-medium text-foreground hover:underline"
-            >
-              กลับไปหน้าเอกสาร
-            </Link>
+            {!embed ? (
+              <Link
+                href="/documents"
+                className="mt-4 inline-block text-sm font-medium text-foreground hover:underline"
+              >
+                กลับไปหน้าเอกสาร
+              </Link>
+            ) : null}
           </div>
         ) : node && isDriveLinkedPage ? (
-          <GoogleDrivePreviewModal
-            open
-            name={title || node.title}
-            url={driveUrl}
-            onClose={() => router.push("/documents")}
-          />
+          embed ? (
+            <div className="min-h-[60vh]">
+              {toGoogleDrivePreviewUrl(driveUrl) ? (
+                <iframe
+                  title={title || node.title}
+                  src={toGoogleDrivePreviewUrl(driveUrl)!}
+                  className="h-[min(80vh,720px)] w-full rounded-xl border border-border"
+                  allow="autoplay"
+                />
+              ) : (
+                <p className="py-8 text-center text-sm text-muted">
+                  ไม่สามารถแสดงพรีวิวลิงก์นี้ได้
+                </p>
+              )}
+            </div>
+          ) : (
+            <GoogleDrivePreviewModal
+              open
+              name={title || node.title}
+              url={driveUrl}
+              onClose={() => router.push("/documents")}
+            />
+          )
         ) : node ? (
           <>
-            <header className="mb-6">
+            <header className={cn("mb-6", embed && "mb-4")}>
               <div
-                className="mb-4 flex h-[4.5rem] w-[4.5rem] items-center justify-center rounded-xl"
+                className={cn(
+                  "mb-4 flex items-center justify-center rounded-xl",
+                  embed ? "h-12 w-12" : "h-[4.5rem] w-[4.5rem]"
+                )}
                 aria-hidden
               >
                 <Icon
-                  className="h-14 w-14"
+                  className={embed ? "h-8 w-8" : "h-14 w-14"}
                   strokeWidth={1.5}
                   style={
                     colorStyles.hasColor
@@ -344,6 +377,7 @@ export function DocumentPageView({ documentId }: DocumentPageViewProps) {
                 ref={titleRef}
                 id="document-title"
                 value={title}
+                readOnly={embed}
                 onChange={(event) => setTitle(event.target.value)}
                 onKeyDown={(event) => {
                   if (event.key === "Enter") {
@@ -353,20 +387,28 @@ export function DocumentPageView({ documentId }: DocumentPageViewProps) {
                 }}
                 rows={1}
                 placeholder="ไม่มีชื่อ"
-                className="w-full resize-none overflow-hidden border-0 bg-transparent p-0 text-3xl font-bold leading-tight tracking-tight text-foreground outline-none placeholder:text-muted/60 sm:text-4xl md:text-[40px]"
+                className={cn(
+                  "w-full resize-none overflow-hidden border-0 bg-transparent p-0 font-bold leading-tight tracking-tight text-foreground outline-none placeholder:text-muted/60",
+                  embed
+                    ? "cursor-default text-2xl sm:text-3xl"
+                    : "text-3xl sm:text-4xl md:text-[40px]"
+                )}
               />
             </header>
 
-            <DocumentBlockEditor
-              ref={editorRef}
-              content={content}
-              onChange={setContent}
-              onHistoryChange={(state) => {
-                setCanUndo(state.canUndo);
-                setCanRedo(state.canRedo);
-              }}
-              className="min-h-[50vh]"
-            />
+            <div className={embed ? "pointer-events-none select-text" : undefined}>
+              <DocumentBlockEditor
+                ref={editorRef}
+                content={content}
+                onChange={setContent}
+                readOnly={embed}
+                onHistoryChange={(state) => {
+                  setCanUndo(state.canUndo);
+                  setCanRedo(state.canRedo);
+                }}
+                className={embed ? "min-h-0" : "min-h-[50vh]"}
+              />
+            </div>
           </>
         ) : null}
       </article>

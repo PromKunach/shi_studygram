@@ -9,7 +9,8 @@ import {
   useState,
 } from "react";
 import { createPortal } from "react-dom";
-import { ExternalLink, Heading1, Heading2, Heading3, Link, List } from "lucide-react";
+import { ExternalLink, Heading1, Heading2, Heading3, LayoutGrid, Link, List } from "lucide-react";
+import { DocumentBoardEmbedBlock } from "@/components/documents/document-board-embed-block";
 import {
   DocumentChipMenu,
   GoogleDriveFormPopover,
@@ -24,9 +25,11 @@ import {
 } from "@/components/documents/document-rich-text-block";
 import {
   createDocumentBlock,
+  createDocumentBoardBlock,
   createDocumentInline,
   filterSlashCommands,
   insertInlineAtOffset,
+  isBoardBlock,
   isBulletBlock,
   isHeadingBlock,
   isInlineSlashCommand,
@@ -83,6 +86,7 @@ type DocumentBlockEditorProps = {
   onChange: (content: string) => void;
   onHistoryChange?: (state: DocumentEditorHistoryState) => void;
   className?: string;
+  readOnly?: boolean;
 };
 
 type SlashMenuState = {
@@ -136,6 +140,8 @@ function commandIcon(command: SlashCommand) {
       return Link;
     case "bullet":
       return List;
+    case "board":
+      return LayoutGrid;
     default:
       return Heading1;
   }
@@ -154,7 +160,7 @@ export const DocumentBlockEditor = forwardRef<
   DocumentBlockEditorHandle,
   DocumentBlockEditorProps
 >(function DocumentBlockEditor(
-  { content, onChange, onHistoryChange, className },
+  { content, onChange, onHistoryChange, className, readOnly = false },
   ref
 ) {
   const [blocks, setBlocks] = useState<DocumentBlock[]>(() =>
@@ -480,6 +486,33 @@ export const DocumentBlockEditor = forwardRef<
         return;
       }
 
+      if (command.id === "board") {
+        captureUndoSnapshot();
+        const index = blocks.findIndex((item) => item.id === block.id);
+        const boardBlock = createDocumentBoardBlock();
+        const afterBlock = createDocumentBlock();
+        const nextBlocks = [...blocks];
+
+        if (before.trim()) {
+          nextBlocks[index] = { ...block, text: before };
+          if (after.trim()) {
+            afterBlock.text = after;
+          }
+          nextBlocks.splice(index + 1, 0, boardBlock, afterBlock);
+        } else if (after.trim()) {
+          nextBlocks[index] = boardBlock;
+          afterBlock.text = after;
+          nextBlocks.splice(index + 1, 0, afterBlock);
+        } else {
+          nextBlocks[index] = boardBlock;
+          nextBlocks.splice(index + 1, 0, afterBlock);
+        }
+
+        emitChange(nextBlocks);
+        setSlashMenu(null);
+        return;
+      }
+
       updateBlock(
         block.id,
         {
@@ -494,7 +527,7 @@ export const DocumentBlockEditor = forwardRef<
         focusBlockAtOffset(block.id, before.length);
       });
     },
-    [blocks, slashMenu, updateBlock]
+    [blocks, captureUndoSnapshot, emitChange, slashMenu, updateBlock]
   );
 
   const handleEmptyBlockBackspace = useCallback(
@@ -517,6 +550,24 @@ export const DocumentBlockEditor = forwardRef<
         emitChange(nextBlocks);
         requestAnimationFrame(() => {
           focusBlockAtOffset(block.id, 0);
+        });
+        return;
+      }
+
+      if (isBoardBlock(currentBlock.type)) {
+        if (flushed.length <= 1) return;
+
+        const index = flushed.findIndex((item) => item.id === block.id);
+        const focusTarget =
+          index > 0 ? flushed[index - 1]! : flushed[index + 1]!;
+
+        captureUndoSnapshot();
+        emitChange(flushed.filter((item) => item.id !== block.id));
+
+        requestAnimationFrame(() => {
+          const target =
+            flushed.find((item) => item.id === focusTarget.id) ?? focusTarget;
+          focusBlockAtOffset(focusTarget.id, target.text.length);
         });
         return;
       }
@@ -712,7 +763,29 @@ export const DocumentBlockEditor = forwardRef<
 
   return (
     <div className={cn("space-y-1", className)}>
-      {blocks.map((block, index) => (
+      {blocks.map((block, index) => {
+        if (isBoardBlock(block.type)) {
+          return (
+            <DocumentBoardEmbedBlock
+              key={block.id}
+              boardId={block.boardId ?? null}
+              boardName={block.boardName ?? ""}
+              readOnly={readOnly}
+              onChange={(patch) =>
+                updateBlock(block.id, patch, "structural")
+              }
+              onRemove={() => {
+                captureUndoSnapshot();
+                const nextBlocks = blocks.filter((item) => item.id !== block.id);
+                emitChange(
+                  nextBlocks.length > 0 ? nextBlocks : [createDocumentBlock()]
+                );
+              }}
+            />
+          );
+        }
+
+        return (
         <div
           key={block.id}
           className={cn(
@@ -801,7 +874,8 @@ export const DocumentBlockEditor = forwardRef<
             }
           />
         </div>
-      ))}
+        );
+      })}
 
       <GoogleDriveFormPopover
         open={driveForm !== null}

@@ -8,6 +8,11 @@ export function formatFileSize(bytes: number) {
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
 }
 
+export function compressionSavingsPercent(original: number, compressed: number) {
+  if (original <= 0) return 0
+  return Math.round(((original - compressed) / original) * 100)
+}
+
 function loadImage(file: File) {
   return new Promise<HTMLImageElement>((resolve, reject) => {
     const url = URL.createObjectURL(file)
@@ -80,4 +85,27 @@ export async function compressImageFile(file: File): Promise<File> {
     type: outputType,
     lastModified: Date.now(),
   })
+}
+
+/** WebP output for announcement card images. */
+export async function compressImageFileToWebp(file: File): Promise<Blob> {
+  if (!file.type.startsWith("image/")) {
+    throw new Error("ไม่สามารถอ่านไฟล์รูปนี้ได้")
+  }
+
+  const image = await loadImage(file)
+  const scale = Math.min(1, MAX_DIMENSION / Math.max(image.width, image.height))
+  const width = Math.max(1, Math.round(image.width * scale))
+  const height = Math.max(1, Math.round(image.height * scale))
+
+  const canvas = document.createElement("canvas")
+  canvas.width = width
+  canvas.height = height
+
+  const context = canvas.getContext("2d")
+  if (!context) throw new Error("ไม่สามารถบีบอัดรูปนี้ได้")
+
+  context.drawImage(image, 0, 0, width, height)
+
+  return canvasToBlob(canvas, "image/webp", 0.82)
 }

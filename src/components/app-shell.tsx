@@ -68,7 +68,7 @@ export function AppShell({ children }: AppShellProps) {
 
       <div
         className={cn(
-          "flex min-h-screen min-w-0 flex-1 flex-col bg-background transition-[margin-left] duration-300 ease-in-out",
+          "flex h-dvh min-w-0 flex-1 flex-col bg-background transition-[margin-left] duration-300 ease-in-out",
           isDesktop && open && "md:ml-[280px]"
         )}
       >
@@ -78,7 +78,9 @@ export function AppShell({ children }: AppShellProps) {
           onOpenSidebar={() => setOpen(true)}
         />
 
-        <div className="flex min-w-0 flex-1">{children}</div>
+        <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-y-auto">
+          {children}
+        </div>
       </div>
     </div>
   );

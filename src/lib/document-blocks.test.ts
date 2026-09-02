@@ -1,9 +1,11 @@
 import { describe, expect, it } from "vitest";
 import {
   createDocumentBlock,
+  createDocumentBoardBlock,
   createGoogleDriveInline,
   createLinkInline,
   filterSlashCommands,
+  isBoardBlock,
   isBulletBlock,
   normalizeDocumentInline,
   parseDocumentContent,
@@ -24,6 +26,12 @@ describe("document slash commands", () => {
       "link"
     );
   });
+
+  it("finds Board by keyword", () => {
+    expect(filterSlashCommands("board").map((command) => command.id)).toContain(
+      "board"
+    );
+  });
 });
 
 describe("document inlines", () => {
@@ -41,6 +49,20 @@ describe("document inlines", () => {
         name: "Example",
       })
     ).toBeNull();
+  });
+});
+
+describe("board blocks", () => {
+  it("round-trips a board block through serialize/parse", () => {
+    const block = createDocumentBoardBlock("announce-1", "Team board");
+    expect(isBoardBlock(block.type)).toBe(true);
+
+    const parsed = parseDocumentContent(serializeDocumentContent([block]));
+
+    expect(parsed).toHaveLength(1);
+    expect(parsed[0]?.type).toBe("board");
+    expect(parsed[0]?.boardId).toBe("announce-1");
+    expect(parsed[0]?.boardName).toBe("Team board");
   });
 });
 

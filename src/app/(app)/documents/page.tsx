@@ -1,6 +1,7 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { Suspense, useCallback, useEffect, useMemo, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import { Plus, Search } from "lucide-react";
 import {
   CreateDocumentDialog,
@@ -23,6 +24,7 @@ import {
   deleteDocumentNode,
   fetchDocumentWorkspace,
   getNodeChildren,
+  normalizeFolderStack,
   updateDocumentNode,
   type DocumentNodeRecord,
 } from "@/lib/documents";
@@ -58,20 +60,11 @@ function pruneFolderStack(
   stack: string[],
   nodes: DocumentNodeRecord[]
 ): string[] {
-  const next: string[] = [];
-
-  for (const folderId of stack) {
-    const folder = nodes.find(
-      (node) => node.id === folderId && node.kind === "folder"
-    );
-    if (!folder) break;
-    next.push(folderId);
-  }
-
-  return next;
+  return normalizeFolderStack(nodes, stack);
 }
 
-export default function DocumentsPage() {
+function DocumentsPageContent() {
+  const searchParams = useSearchParams();
   const { user, ready } = useCurrentUser();
   const authorPbriId = getAuthorPbriId(user);
 
@@ -131,6 +124,38 @@ export default function DocumentsPage() {
     if (!ready) return;
     void loadWorkspace();
   }, [ready, loadWorkspace]);
+
+  useEffect(() => {
+    if (!hasLoaded) return;
+
+    const sectionId = searchParams.get("section")?.trim();
+    const foldersParam = searchParams.get("folders")?.trim();
+    if (!sectionId || !foldersParam) return;
+
+    const sectionExists = sections.some((section) => section.id === sectionId);
+    if (!sectionExists) return;
+
+    const folderStack = normalizeFolderStack(
+      nodes,
+      foldersParam
+        .split(",")
+        .map((id) => id.trim())
+        .filter(Boolean)
+    );
+    if (folderStack.length === 0) return;
+
+    setFolderStackBySection((current) => {
+      const existing = current[sectionId] ?? [];
+      if (
+        existing.length === folderStack.length &&
+        existing.every((id, index) => id === folderStack[index])
+      ) {
+        return current;
+      }
+
+      return { ...current, [sectionId]: folderStack };
+    });
+  }, [hasLoaded, nodes, sections, searchParams]);
 
   const getActiveParentId = useCallback(
     (sectionId: string) => {
@@ -408,5 +433,13 @@ export default function DocumentsPage() {
         onClose={() => setDrivePreview(null)}
       />
     </main>
+  );
+}
+
+export default function DocumentsPage() {
+  return (
+    <Suspense fallback={<DocumentsSectionsSkeleton />}>
+      <DocumentsPageContent />
+    </Suspense>
   );
 }

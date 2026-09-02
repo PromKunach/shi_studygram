@@ -8,6 +8,7 @@ import {
   CalendarDays,
   Folder,
   LogOut,
+  Megaphone,
   Menu,
   Newspaper,
   Settings,
@@ -206,7 +207,14 @@ export function AppTopbar({
                     icon={Newspaper}
                     onClick={() => setMenuOpen(false)}
                   >
-                    ข่าวสาร
+                    อัพเดตงาน
+                  </MenuItem>
+                  <MenuItem
+                    href="/announces"
+                    icon={Megaphone}
+                    onClick={() => setMenuOpen(false)}
+                  >
+                    โน้ตประกาศ
                   </MenuItem>
                   <MenuItem
                     href="/documents"

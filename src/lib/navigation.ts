@@ -4,8 +4,9 @@ import {
   FileText,
   Folder,
   Home,
+  Megaphone,
   Newspaper,
-  Loader,
+  Pin,
 } from "lucide-react";
 import { getDocumentColorStyles, type DocumentColorId } from "@/lib/document-colors";
 import { getDocumentIcon, type DocumentIconId } from "@/lib/document-icons";
@@ -52,7 +53,9 @@ export const RECENT_SECTION_LABEL = "เอกสารล่าสุด";
 /** Display metadata for a content page at a given URL slug. */
 export const PAGE_META: Record<string, { label: string; icon: LucideIcon }> = {
   "/": { label: "หน้าหลัก", icon: Home },
-  "/news": { label: "ข่าวสาร", icon: Loader },
+  "/news": { label: "อัพเดตงาน", icon: Newspaper },
+  "/announces": { label: "โน้ตประกาศ", icon: Megaphone },
+  "/announces/feed": { label: "ฟีดบอร์ด", icon: Megaphone },
   "/appointment": { label: "กำหนดการณ์", icon: CalendarDays },
   "/documents": { label: "เอกสาร", icon: Folder },
 };
@@ -88,8 +91,10 @@ export function getRecentlyVisitedPages() {
 export const NAV_TOP: NavItem[] = [
   { label: "หน้าหลัก", icon: Home, href: "/" },
   { label: "เอกสาร", icon: Folder, href: "/documents" },
+  { label: "อัพเดตงาน", icon: Newspaper, href: "/news" },
 
-  { label: "อัพเดตงาน", icon: Loader, href: "/news" },
+  { label: "บอร์ด", icon: Pin, href: "/announces" },
+
   { label: "กำหนดการณ์", icon: CalendarDays, href: "/appointment" },
 ];
 

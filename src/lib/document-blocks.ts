@@ -1,4 +1,10 @@
-export type DocumentBlockType = "paragraph" | "h1" | "h2" | "h3" | "bullet";
+export type DocumentBlockType =
+  | "paragraph"
+  | "h1"
+  | "h2"
+  | "h3"
+  | "bullet"
+  | "board";
 
 export type DocumentInlineType = "google-drive" | "link";
 
@@ -14,6 +20,8 @@ export type DocumentBlock = {
   type: DocumentBlockType;
   text: string;
   inlines?: DocumentInline[];
+  boardId?: string | null;
+  boardName?: string;
 };
 
 export type DocumentBlocksPayload = {
@@ -50,6 +58,19 @@ export function createDocumentBlock(
     type,
     text,
     inlines,
+  };
+}
+
+export function createDocumentBoardBlock(
+  boardId: string | null = null,
+  boardName = ""
+): DocumentBlock {
+  return {
+    id: crypto.randomUUID(),
+    type: "board",
+    text: "",
+    boardId,
+    boardName,
   };
 }
 
@@ -166,6 +187,25 @@ function normalizeBlock(raw: unknown): DocumentBlock | null {
   }
 
   const type = record.type;
+  if (type === "board") {
+    const boardId =
+      typeof (record as { boardId?: unknown }).boardId === "string"
+        ? (record as { boardId: string }).boardId
+        : null;
+    const boardName =
+      typeof (record as { boardName?: unknown }).boardName === "string"
+        ? (record as { boardName: string }).boardName
+        : "";
+
+    return {
+      id: typeof record.id === "string" ? record.id : crypto.randomUUID(),
+      type: "board",
+      text: "",
+      boardId,
+      boardName,
+    };
+  }
+
   if (
     type !== "paragraph" &&
     type !== "h1" &&
@@ -387,6 +427,12 @@ export const SLASH_COMMANDS: SlashCommand[] = [
     description: "รายการจุด",
     keywords: ["bullet", "bullets", "list", "ul", "รายการ", "จุด"],
   },
+  {
+    id: "board",
+    label: "Board",
+    description: "แนบบอร์ดประกาศ",
+    keywords: ["board", "announce", "announces", "บอร์ด", "ประกาศ", "workspace"],
+  },
 ];
 
 export function filterSlashCommands(query: string): SlashCommand[] {
@@ -454,6 +500,10 @@ export function isHeadingBlock(type: DocumentBlockType) {
 
 export function isBulletBlock(type: DocumentBlockType) {
   return type === "bullet";
+}
+
+export function isBoardBlock(type: DocumentBlockType) {
+  return type === "board";
 }
 
 export function isInlineSlashCommand(

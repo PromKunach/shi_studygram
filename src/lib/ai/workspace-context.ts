@@ -61,6 +61,7 @@ const APP_FEATURES = [
   "Home — AI search for documents and workspace help",
   "Documents — study notes and folders",
   "Appointments — schedule and deadlines",
+  "Announces — announcement boards and work updates",
   "News — announcements and feed",
 ];
 

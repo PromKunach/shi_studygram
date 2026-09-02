@@ -34,6 +34,7 @@ export type BoardBlockKind =
   | "link"
   | "dock"
   | "appointment"
+  | "document"
 
 export type BoardCounterIncrement = {
   id: string
@@ -60,6 +61,12 @@ type BoardBlockShared = {
   width: number
   author: BoardAuthor
   createdAt: string
+  /** When set, this block follows the parent block while dragging. */
+  glueParentId?: string | null
+  /** Relative X offset from glue parent (board width fraction). */
+  glueOffsetX?: number
+  /** Relative Y offset from glue parent (board height fraction). */
+  glueOffsetY?: number
 }
 
 export type BoardTextBlock = BoardBlockShared & {
@@ -106,6 +113,11 @@ export type BoardAppointmentBlock = BoardBlockShared & {
   kind: "appointment"
 }
 
+export type BoardDocumentBlock = BoardBlockShared & {
+  kind: "document"
+  documentId: string | null
+}
+
 export type BoardBlock =
   | BoardTextBlock
   | BoardCounterBlock
@@ -113,6 +125,7 @@ export type BoardBlock =
   | BoardLinkBlock
   | BoardDockBlock
   | BoardAppointmentBlock
+  | BoardDocumentBlock
 
 export type BoardConnection = {
   id: string
@@ -151,6 +164,334 @@ export const EMPTY_BOARD: BoardContent = {
 }
 
 export const DEFAULT_BLOCK_COLOR = "#1f2937"
+
+export type MessageBlockThemeTokens = {
+  background: string
+  border: string
+  divider: string
+  foreground: string
+  muted: string
+}
+
+export type MessageBlockColorPreset = {
+  id: string
+  label: string
+  value: string
+  swatch: string
+  light: MessageBlockThemeTokens
+  dark: MessageBlockThemeTokens
+}
+
+export const MESSAGE_BLOCK_COLOR_PRESETS: MessageBlockColorPreset[] = [
+  {
+    id: "default",
+    label: "ค่าเริ่มต้น",
+    value: DEFAULT_BLOCK_COLOR,
+    swatch: "var(--card)",
+    light: {
+      background: "var(--card)",
+      border: "transparent",
+      divider: "color-mix(in srgb, var(--border) 80%, transparent)",
+      foreground: "var(--card-foreground)",
+      muted: "var(--muted-foreground)",
+    },
+    dark: {
+      background: "var(--card)",
+      border: "transparent",
+      divider: "color-mix(in srgb, var(--border) 80%, transparent)",
+      foreground: "var(--card-foreground)",
+      muted: "var(--muted-foreground)",
+    },
+  },
+  {
+    id: "rose",
+    label: "ชมพู",
+    value: "rose",
+    swatch: "#f48fb1",
+    light: {
+      background: "#fde8ef",
+      border: "#f48fb1",
+      divider: "#f8b4c8",
+      foreground: "#880e4f",
+      muted: "#c2185b",
+    },
+    dark: {
+      background: "#3b1c24",
+      border: "#e91e63",
+      divider: "#5c2838",
+      foreground: "#ffc1d9",
+      muted: "#f48fb1",
+    },
+  },
+  {
+    id: "sand",
+    label: "ทราย",
+    value: "sand",
+    swatch: "#ffcc80",
+    light: {
+      background: "#fff8e7",
+      border: "#ffb74d",
+      divider: "#ffe0b2",
+      foreground: "#6d4c1a",
+      muted: "#a67c2e",
+    },
+    dark: {
+      background: "#2e2618",
+      border: "#ffa726",
+      divider: "#4a3a20",
+      foreground: "#ffe8b3",
+      muted: "#ffcc80",
+    },
+  },
+  {
+    id: "sage",
+    label: "เขียว",
+    value: "sage",
+    swatch: "#81c784",
+    light: {
+      background: "#e8f5e9",
+      border: "#66bb6a",
+      divider: "#a5d6a7",
+      foreground: "#1b5e20",
+      muted: "#388e3c",
+    },
+    dark: {
+      background: "#1a2e1c",
+      border: "#43a047",
+      divider: "#2a4030",
+      foreground: "#c8e6c9",
+      muted: "#81c784",
+    },
+  },
+  {
+    id: "mist",
+    label: "ฟ้า",
+    value: "mist",
+    swatch: "#64b5f6",
+    light: {
+      background: "#e3f2fd",
+      border: "#42a5f5",
+      divider: "#90caf9",
+      foreground: "#0d47a1",
+      muted: "#1976d2",
+    },
+    dark: {
+      background: "#1a2533",
+      border: "#2196f3",
+      divider: "#2a3a50",
+      foreground: "#bbdefb",
+      muted: "#64b5f6",
+    },
+  },
+  {
+    id: "lavender",
+    label: "ม่วง",
+    value: "lavender",
+    swatch: "#ba68c8",
+    light: {
+      background: "#f3e5f5",
+      border: "#ab47bc",
+      divider: "#ce93d8",
+      foreground: "#4a148c",
+      muted: "#7b1fa2",
+    },
+    dark: {
+      background: "#2a1a33",
+      border: "#9c27b0",
+      divider: "#3d2850",
+      foreground: "#e1bee7",
+      muted: "#ba68c8",
+    },
+  },
+  {
+    id: "coral",
+    label: "ส้ม",
+    value: "coral",
+    swatch: "#ff8a65",
+    light: {
+      background: "#fff0eb",
+      border: "#ff7043",
+      divider: "#ffab91",
+      foreground: "#bf360c",
+      muted: "#e64a19",
+    },
+    dark: {
+      background: "#331f18",
+      border: "#ff5722",
+      divider: "#4a2a20",
+      foreground: "#ffccbc",
+      muted: "#ff8a65",
+    },
+  },
+  {
+    id: "sky",
+    label: "ฟ้าสด",
+    value: "sky",
+    swatch: "#4fc3f7",
+    light: {
+      background: "#e1f5fe",
+      border: "#29b6f6",
+      divider: "#81d4fa",
+      foreground: "#01579b",
+      muted: "#0288d1",
+    },
+    dark: {
+      background: "#152a33",
+      border: "#03a9f4",
+      divider: "#1e3a48",
+      foreground: "#b3e5fc",
+      muted: "#4fc3f7",
+    },
+  },
+]
+
+const LEGACY_MESSAGE_BLOCK_COLORS: Record<string, string> = {
+  "#dc2626": "coral",
+  "#db2777": "rose",
+  "#ea580c": "coral",
+  "#d97706": "sand",
+  "#16a34a": "sage",
+  "#0d9488": "sage",
+  "#2563eb": "mist",
+  "#7c3aed": "lavender",
+}
+
+export function isDefaultBlockColor(color: string | undefined | null) {
+  if (!color) return true
+  return resolveMessageBlockColor(color) === DEFAULT_BLOCK_COLOR
+}
+
+export function resolveMessageBlockColor(color: string | undefined | null) {
+  if (!color) return DEFAULT_BLOCK_COLOR
+
+  const normalized = color.trim().toLowerCase()
+  if (normalized === DEFAULT_BLOCK_COLOR) return DEFAULT_BLOCK_COLOR
+
+  const legacy = LEGACY_MESSAGE_BLOCK_COLORS[normalized]
+  if (legacy) return legacy
+
+  const preset = MESSAGE_BLOCK_COLOR_PRESETS.find(
+    (item) =>
+      item.id === color ||
+      item.value.toLowerCase() === normalized ||
+      item.id === normalized
+  )
+  if (preset) return preset.value
+
+  return DEFAULT_BLOCK_COLOR
+}
+
+export function getMessageBlockTheme(
+  color: string | undefined | null,
+  mode: "light" | "dark"
+): MessageBlockThemeTokens | null {
+  const resolved = resolveMessageBlockColor(color)
+  if (resolved === DEFAULT_BLOCK_COLOR) return null
+
+  const preset = MESSAGE_BLOCK_COLOR_PRESETS.find(
+    (item) => item.value === resolved || item.id === resolved
+  )
+  if (!preset || preset.id === "default") return null
+
+  return mode === "dark" ? preset.dark : preset.light
+}
+
+export function collectGlueDescendantIds(
+  parentId: string,
+  blocks: BoardBlock[]
+): string[] {
+  const descendants: string[] = []
+  const queue = [parentId]
+  const seen = new Set([parentId])
+
+  while (queue.length > 0) {
+    const current = queue.shift()!
+    for (const block of blocks) {
+      if (block.glueParentId !== current || seen.has(block.id)) continue
+      descendants.push(block.id)
+      seen.add(block.id)
+      queue.push(block.id)
+    }
+  }
+
+  return descendants
+}
+
+export function findGlueGroupRootId(blockId: string, blocks: BoardBlock[]) {
+  let rootId = blockId
+  const seen = new Set<string>()
+
+  while (true) {
+    const block = blocks.find((item) => item.id === rootId)
+    const parentId = block?.glueParentId
+    if (!parentId || seen.has(parentId)) break
+    seen.add(rootId)
+    rootId = parentId
+  }
+
+  return rootId
+}
+
+/** Root + every block glued beneath it in the same group. */
+export function collectGlueGroupMemberIds(
+  blockId: string,
+  blocks: BoardBlock[]
+) {
+  const rootId = findGlueGroupRootId(blockId, blocks)
+  return [rootId, ...collectGlueDescendantIds(rootId, blocks)]
+}
+
+export function wouldCreateGlueCycle(
+  parentId: string,
+  childId: string,
+  blocks: BoardBlock[]
+) {
+  if (parentId === childId) return true
+
+  let current: string | null | undefined = parentId
+  const seen = new Set<string>()
+  while (current) {
+    if (current === childId) return true
+    if (seen.has(current)) return false
+    seen.add(current)
+    const block = blocks.find((item) => item.id === current)
+    current = block?.glueParentId ?? null
+  }
+
+  return false
+}
+
+export function createGluePatch(
+  parent: BoardBlock,
+  child: BoardBlock
+): Pick<BoardBlock, "glueParentId" | "glueOffsetX" | "glueOffsetY"> {
+  return {
+    glueParentId: parent.id,
+    glueOffsetX: child.x - parent.x,
+    glueOffsetY: child.y - parent.y,
+  }
+}
+
+function normalizeGlueFields<T extends BoardBlock>(block: T): T {
+  const raw = block as T & {
+    glueParentId?: unknown
+    glueOffsetX?: unknown
+    glueOffsetY?: unknown
+  }
+  const glueParentId =
+    typeof raw.glueParentId === "string" ? raw.glueParentId : null
+  const glueOffsetX =
+    typeof raw.glueOffsetX === "number" ? raw.glueOffsetX : undefined
+  const glueOffsetY =
+    typeof raw.glueOffsetY === "number" ? raw.glueOffsetY : undefined
+
+  return {
+    ...block,
+    glueParentId,
+    ...(glueOffsetX !== undefined ? { glueOffsetX } : {}),
+    ...(glueOffsetY !== undefined ? { glueOffsetY } : {}),
+  }
+}
 export const DEFAULT_BLOCK_FONT_SIZE = 18
 export const DEFAULT_BLOCK_WIDTH = 260 / BOARD_WIDTH
 export const DEFAULT_COUNTER_WIDTH = 220 / BOARD_WIDTH
@@ -161,6 +502,7 @@ export const LINK_NODE_SIZE = 52
 export const LINK_NODE_LAYOUT_WIDTH = 224 / BOARD_WIDTH
 export const DEFAULT_LINK_WIDTH = LINK_NODE_LAYOUT_WIDTH
 export const DEFAULT_APPOINTMENT_WIDTH = 200 / BOARD_WIDTH
+export const DEFAULT_DOCUMENT_WIDTH = 176 / BOARD_WIDTH
 
 /** Max encoded image size stored on a comment (512 KB). */
 export const COMMENT_IMAGE_MAX_BYTES = 512 * 1024
@@ -190,6 +532,10 @@ export function isDockBlock(block: BoardBlock): block is BoardDockBlock {
 
 export function isAppointmentBlock(block: BoardBlock): block is BoardAppointmentBlock {
   return block.kind === "appointment"
+}
+
+export function isDocumentBlock(block: BoardBlock): block is BoardDocumentBlock {
+  return block.kind === "document"
 }
 
 /** "all" = any logged-in user; "author" = only the block author */
@@ -321,6 +667,23 @@ export function createAppointmentBlock(
   }
 }
 
+export function createDocumentBlock(
+  x: number,
+  y: number,
+  author: BoardAuthor
+): BoardDocumentBlock {
+  return {
+    id: crypto.randomUUID(),
+    kind: "document",
+    documentId: null,
+    x,
+    y,
+    width: DEFAULT_DOCUMENT_WIDTH,
+    author,
+    createdAt: new Date().toISOString(),
+  }
+}
+
 function isBlockLink(value: unknown): value is BoardBlockLink {
   if (!value || typeof value !== "object") return false
   const link = value as Record<string, unknown>
@@ -387,6 +750,9 @@ function isBlock(value: unknown): value is BoardBlock {
   if (block.kind === "appointment") {
     return true
   }
+  if (block.kind === "document") {
+    return true
+  }
   return typeof block.text === "string"
 }
 
@@ -436,7 +802,7 @@ function normalizeCommentBlock(block: BoardCommentBlock): BoardCommentBlock {
     title: block.title ?? "",
     comments: normalizeCommentEntries(block.comments),
     width: DEFAULT_COMMENT_WIDTH,
-    color: block.color || DEFAULT_BLOCK_COLOR,
+    color: resolveMessageBlockColor(block.color),
     fontSize: block.fontSize || DEFAULT_BLOCK_FONT_SIZE,
     author: block.author ?? {
       studentId: "ไม่ระบุ",
@@ -460,7 +826,7 @@ function normalizeTextBlock(block: BoardTextBlock): BoardTextBlock {
     ...(rest as BoardTextBlock),
     kind: "text",
     width: block.width || DEFAULT_BLOCK_WIDTH,
-    color: block.color || DEFAULT_BLOCK_COLOR,
+    color: resolveMessageBlockColor(block.color),
     fontSize: block.fontSize || DEFAULT_BLOCK_FONT_SIZE,
     description: block.description ?? "",
     author: block.author ?? {
@@ -615,6 +981,28 @@ function normalizeAppointmentBlock(block: BoardAppointmentBlock): BoardAppointme
   }
 }
 
+function normalizeDocumentBlock(block: BoardDocumentBlock): BoardDocumentBlock {
+  const raw = block as BoardDocumentBlock & Record<string, unknown>
+  const documentId =
+    typeof raw.documentId === "string" && raw.documentId.trim().length > 0
+      ? raw.documentId.trim()
+      : null
+
+  return {
+    id: block.id,
+    kind: "document",
+    documentId,
+    x: block.x,
+    y: block.y,
+    width: DEFAULT_DOCUMENT_WIDTH,
+    author: block.author ?? {
+      studentId: "ไม่ระบุ",
+      displayName: "ไม่ทราบชื่อ",
+    },
+    createdAt: block.createdAt || new Date().toISOString(),
+  }
+}
+
 function normalizeDockBlock(block: BoardDockBlock): BoardDockBlock {
   const raw = block as BoardDockBlock & Record<string, unknown>
   const dockedBlockIds = Array.isArray(raw.dockedBlockIds)
@@ -667,10 +1055,23 @@ function normalizeCounterBlock(block: BoardCounterBlock): BoardCounterBlock {
 export function normalizeBoardBlocksForSave(blocks: BoardBlock[]): BoardBlock[] {
   return blocks.map((block) => {
     if (isCounterBlock(block)) return { ...block, width: DEFAULT_COUNTER_WIDTH }
-    if (isCommentBlock(block)) return { ...block, width: DEFAULT_COMMENT_WIDTH }
+    if (isCommentBlock(block)) {
+      return {
+        ...block,
+        width: DEFAULT_COMMENT_WIDTH,
+        color: resolveMessageBlockColor(block.color),
+      }
+    }
     if (isLinkBlock(block)) return { ...block, width: DEFAULT_LINK_WIDTH }
     if (isDockBlock(block)) return { ...block, width: DEFAULT_DOCK_WIDTH }
     if (isAppointmentBlock(block)) return { ...block, width: DEFAULT_APPOINTMENT_WIDTH }
+    if (isDocumentBlock(block)) return { ...block, width: DEFAULT_DOCUMENT_WIDTH }
+    if (isTextBlock(block)) {
+      return {
+        ...block,
+        color: resolveMessageBlockColor(block.color),
+      }
+    }
     return block
   })
 }
@@ -724,6 +1125,13 @@ export function normalizeBlocks(raw: unknown): BoardBlock[] {
       result.push(normalized)
       continue
     }
+    if (isDocumentBlock(item)) {
+      const normalized = normalizeDocumentBlock(item)
+      if (seenBlockIds.has(normalized.id)) continue
+      seenBlockIds.add(normalized.id)
+      result.push(normalized)
+      continue
+    }
 
     const textBlock = normalizeTextBlock(item)
     result.push(textBlock)
@@ -742,7 +1150,7 @@ export function normalizeBlocks(raw: unknown): BoardBlock[] {
     }
   }
 
-  return result
+  return result.map((block) => normalizeGlueFields(block))
 }
 
 export function normalizeConnections(raw: unknown): BoardConnection[] {
